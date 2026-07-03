@@ -32,7 +32,15 @@ Key: `confirm#{pageId}#{accountId}#{pageVersion}` (deterministic → idempotent 
 | `appVersion` | string | app version that wrote the record (audit traceability) |
 | `schemaVersion` | number | `1` — for future migrations without mutating old records |
 
-Indexes: `by-page` (pageId, confirmedAt), `by-user` (accountId, confirmedAt).
+Indexes (validated on Forge, spike M0-1 — partition/range split is normative; a range holds exactly **one** attribute, partitions may hold several):
+
+| Index | Partition | Range | Serves |
+|---|---|---|---|
+| `by-page` | `pageId` | `confirmedAt` | dashboard drill-down, per-page export |
+| `by-user` | `accountId` | `confirmedAt` | user history, per-user export |
+| `by-page-user` | `pageId, accountId` | `pageVersion` | **macro hot path**: `Sort.DESC` + `limit(1)` = latest confirmed version in one read |
+
+> `by-page-user` was added by the spike: neither original index serves "records for (user, page)" without fanning out over all of a page's confirmations. Note Forge also provides a default `by-key` index per entity (range = data key), but lexicographic key order can't replace `by-page-user` — version numbers in keys sort as strings (`v10` < `v2`).
 
 ### 2.2 `pageConfig` — requirement configuration (mutable)
 
@@ -50,7 +58,9 @@ Key: `config#{pageId}`
 | `counters` | object | advisory denormalized counts for dashboard list (tech design §5) — **never used in exports** |
 | `active` | boolean | soft-delete: removing the requirement flips this; records remain |
 
-Index: `tracked` (active, spaceKey) — powers the global dashboard without scanning.
+Index: `tracked` — partition `active`, range `spaceKey` (validated on Forge, spike M0-1). One index serves both dashboard shapes: site-wide list = partition `[true]`; space filter = `where equalTo(spaceKey)` on the range. Booleans are legal partition attributes.
+
+> **Entity naming (platform constraint, spike M0-1):** entity names must match `^[a-z0-9:\-_.]*` — camelCase is rejected by `forge lint`. Manifest names are therefore `page-config` and `config-audit` (attribute names may stay camelCase); prose in these docs keeps the logical names.
 
 > **Page-move caveat:** `spaceKey` here is written at config time and goes stale if the page moves to another space. Dashboard space filtering resolves the current space at render for rows whose page lookup succeeds; v1.1 refreshes the index on the page-moved event **[SPIKE: verify event id — expected `avi:confluence:moved:page`]**.
 
@@ -115,6 +125,8 @@ exported_at_utc, app_version
 | `exported_at_utc`, `app_version` | identical on every row of one export — makes each file self-describing evidence |
 
 Scope options and filters per PRD F1 (page / space / site; date range applies to `confirmed_at_utc`).
+
+**Exports obey the viewer-visibility rule (tech design §4):** rows are emitted only for pages the exporting user can view, plus deleted pages (rendered `[deleted page {id}]`, no title). Pages that exist but are view-restricted for the exporter are omitted entirely — an export is evidence of what *this* auditor may see, never a permission bypass.
 
 **PDF export (PRD F2, P0):** a client-side rendering of the *same* normative dataset — identical records, statuses, and timestamps as the CSV of the same scope. CSV remains the canonical machine-readable format; the PDF adds a report header (scope, `exported_at_utc`, app version) and human-readable layout, never additional or filtered data.
 

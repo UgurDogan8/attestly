@@ -72,7 +72,9 @@ Confirm button reachable by keyboard, visible focus ring (Atlaskit default), `ar
 
 ## 3. Admin flows
 
-### 3.1 Assignment (macro config panel — fallback plan in tech design §11.6)
+### 3.1 Assignment (Custom UI macro config modal — tech design §11.6)
+
+> Save writes to app storage via resolver (`saveConfig`), **never into page content** — page version restores can't roll back assignments and the dashboard can edit the same config. Fallback if the in-config invoke probe fails: the same UI as a modal launched from the macro body in view mode.
 
 Editor inserts macro via `/read confirmation` → config panel:
 
