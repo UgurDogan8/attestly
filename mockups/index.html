@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en" data-color-mode="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Read Confirmation — mockups</title>
+<style>
+/* ============================================================
+   Atlassian Design System tokens (subset, hand-inlined).
+   Single source for both themes — no hardcoded colors below.
+   ============================================================ */
+:root[data-color-mode="light"]{
+  --surface:#FFFFFF; --surface-sunken:#F7F8F9; --surface-overlay:#FFFFFF;
+  --text:#172B4D; --text-subtle:#44546F; --text-subtlest:#626F86; --text-inverse:#FFFFFF;
+  --link:#0C66E4; --border:rgba(9,30,66,.14); --shadow:rgba(9,30,66,.25);
+  --brand:#0C66E4; --brand-hover:#0055CC;
+  --bg-neutral:rgba(9,30,66,.06); --bg-neutral-hover:rgba(9,30,66,.14);
+  --bg-info:#E9F2FF; --icon-info:#1D7AFC;
+  --bg-success:#DCFFF1; --text-success:#216E4E; --icon-success:#22A06B;
+  --bg-warning:#FFF7D6; --text-warning:#A54800; --icon-warning:#B38600;
+  --bg-danger:#FFECEB; --text-danger:#AE2E24; --icon-danger:#C9372C;
+  --bg-discovery:#F3F0FF; --icon-discovery:#8270DB;
+  --loz-default-bg:#DCDFE4; --loz-default-tx:#44546F;
+  --loz-success-bg:#BAF3DB; --loz-success-tx:#164B35;
+  --loz-moved-bg:#F8E6A0;   --loz-moved-tx:#533F04;
+  --loz-removed-bg:#FFD5D2; --loz-removed-tx:#5D1F1A;
+  --loz-new-bg:#DFD8FD;     --loz-new-tx:#352C63;
+  --progress-track:rgba(9,30,66,.14); --progress-fill:#0C66E4; --progress-success:#22A06B;
+}
+:root[data-color-mode="dark"]{
+  --surface:#1D2125; --surface-sunken:#161A1D; --surface-overlay:#282E33;
+  --text:#B6C2CF; --text-subtle:#9FADBC; --text-subtlest:#8C9BAB; --text-inverse:#1D2125;
+  --link:#579DFF; --border:rgba(166,197,226,.16); --shadow:rgba(3,4,4,.56);
+  --brand:#579DFF; --brand-hover:#85B8FF;
+  --bg-neutral:rgba(161,189,217,.08); --bg-neutral-hover:rgba(166,197,226,.16);
+  --bg-info:#1C2B41; --icon-info:#579DFF;
+  --bg-success:#1C3329; --text-success:#4BCE97; --icon-success:#4BCE97;
+  --bg-warning:#332E1B; --text-warning:#E2B203; --icon-warning:#E2B203;
+  --bg-danger:#42221F; --text-danger:#FD9891; --icon-danger:#F87168;
+  --bg-discovery:#2B273F; --icon-discovery:#B8ACF6;
+  --loz-default-bg:#2C333A; --loz-default-tx:#9FADBC;
+  --loz-success-bg:#164B35; --loz-success-tx:#7EE2B8;
+  --loz-moved-bg:#533F04;   --loz-moved-tx:#F5CD47;
+  --loz-removed-bg:#5D1F1A; --loz-removed-tx:#FD9891;
+  --loz-new-bg:#352C63;     --loz-new-tx:#B8ACF6;
+  --progress-track:rgba(166,197,226,.16); --progress-fill:#579DFF; --progress-success:#4BCE97;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",Ubuntu,sans-serif;
+  font-size:14px; line-height:1.43; color:var(--text); background:var(--surface);
+}
+a{color:var(--link); text-decoration:none} a:hover{text-decoration:underline}
+h1,h2,h3,h4{margin:0; font-weight:600}
+h2{font-size:24px} h3{font-size:16px}
+
+/* ---- shell ---- */
+.shell{display:flex; min-height:100vh}
+.sidebar{width:230px; flex-shrink:0; border-right:1px solid var(--border); padding:16px;
+  display:flex; flex-direction:column; gap:4px; background:var(--surface)}
+.sidebar h4{margin-bottom:16px; font-size:14px}
+.spacer{flex:1}
+main{flex:1; padding:32px; max-width:980px}
+.screen{display:none} .screen.active{display:block}
+
+/* ---- buttons ---- */
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  font:inherit; font-weight:500; border:none; border-radius:3px; cursor:pointer;
+  height:32px; padding:0 12px; background:var(--bg-neutral); color:var(--text);}
+.btn:hover{background:var(--bg-neutral-hover)}
+.btn.primary{background:var(--brand); color:var(--text-inverse)}
+.btn.primary:hover{background:var(--brand-hover)}
+.btn.subtle{background:transparent}
+.btn.subtle:hover{background:var(--bg-neutral)}
+.btn.full{width:100%}
+.btn.selected{background:var(--brand); color:var(--text-inverse)}
+.btn:disabled{opacity:.5; cursor:not-allowed}
+.btn .spinner{width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;
+  border-radius:50%; animation:spin .8s linear infinite; display:none}
+.btn.loading .spinner{display:inline-block}
+.btn.loading{pointer-events:none; opacity:.85}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- form controls ---- */
+select,input[type=date],input[type=text]{
+  font:inherit; color:var(--text); background:var(--surface-sunken);
+  border:2px solid var(--border); border-radius:3px; height:36px; padding:0 8px; min-width:150px}
+select:focus,input:focus{outline:none; border-color:var(--brand)}
+.field{margin-top:16px}
+.field>label{display:block; font-weight:500; margin-bottom:4px; font-size:13px}
+.hint{color:var(--text-subtlest); font-size:12.5px; margin-top:4px}
+.toggle-row{display:flex; align-items:center; gap:8px; margin-top:16px}
+.switch{position:relative; width:32px; height:16px; flex-shrink:0}
+.switch input{opacity:0; width:0; height:0}
+.switch .slider{position:absolute; inset:0; background:var(--bg-neutral-hover); border-radius:8px; transition:.15s}
+.switch .slider:before{content:""; position:absolute; width:12px; height:12px; left:2px; top:2px;
+  background:var(--surface); border-radius:50%; transition:.15s}
+.switch input:checked + .slider{background:var(--icon-success)}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+
+/* ---- section messages ---- */
+.msg{display:flex; gap:12px; padding:16px; border-radius:3px; margin:0 0 8px 0}
+.msg .icon{font-size:16px; line-height:1.3}
+.msg .title{font-weight:600; margin-bottom:4px}
+.msg p{margin:4px 0}
+.msg.info{background:var(--bg-info)} .msg.info .icon{color:var(--icon-info)}
+.msg.success{background:var(--bg-success)} .msg.success .icon{color:var(--icon-success)}
+.msg.warning{background:var(--bg-warning)} .msg.warning .icon{color:var(--icon-warning)}
+.msg.error{background:var(--bg-danger)} .msg.error .icon{color:var(--icon-danger)}
+.msg.discovery{background:var(--bg-discovery)} .msg.discovery .icon{color:var(--icon-discovery)}
+
+/* ---- lozenge ---- */
+.loz{display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase;
+  border-radius:3px; padding:2px 6px; line-height:1.4; vertical-align:middle; white-space:nowrap;
+  background:var(--loz-default-bg); color:var(--loz-default-tx)}
+.loz.success{background:var(--loz-success-bg); color:var(--loz-success-tx)}
+.loz.moved{background:var(--loz-moved-bg); color:var(--loz-moved-tx)}
+.loz.removed{background:var(--loz-removed-bg); color:var(--loz-removed-tx)}
+.loz.new{background:var(--loz-new-bg); color:var(--loz-new-tx)}
+.loz.clickable{cursor:pointer}
+
+/* ---- table ---- */
+table{width:100%; border-collapse:collapse}
+th{text-align:left; font-size:12px; font-weight:600; color:var(--text-subtlest);
+  padding:8px 8px; border-bottom:2px solid var(--border)}
+td{padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:middle}
+tr:hover td{background:var(--surface-sunken)}
+
+/* ---- tabs ---- */
+.tabs{display:flex; gap:4px; border-bottom:2px solid var(--border); margin-top:16px}
+.tab{font:inherit; font-weight:500; background:none; border:none; cursor:pointer;
+  color:var(--text-subtle); padding:8px 12px; margin-bottom:-2px; border-bottom:2px solid transparent}
+.tab.active{color:var(--brand); border-bottom-color:var(--brand)}
+.tab .badge{background:var(--bg-neutral); border-radius:8px; padding:1px 7px; font-size:12px; margin-left:4px}
+.tabpanel{display:none; padding-top:8px} .tabpanel.active{display:block}
+
+/* ---- progress ---- */
+.progress{display:flex; align-items:center; gap:8px; min-width:140px}
+.progress .track{flex:1; height:6px; border-radius:3px; background:var(--progress-track); overflow:hidden}
+.progress .fill{height:100%; border-radius:3px; background:var(--progress-fill)}
+.progress.complete .fill{background:var(--progress-success)}
+.progress .pct{min-width:40px; text-align:right; font-variant-numeric:tabular-nums}
+.indeterminate .fill{width:30% !important; animation:indet 1.2s ease-in-out infinite}
+@keyframes indet{0%{margin-left:-30%}100%{margin-left:100%}}
+
+/* ---- modal ---- */
+.overlay{position:fixed; inset:0; background:var(--shadow); display:none;
+  align-items:flex-start; justify-content:center; padding-top:8vh; z-index:50}
+.overlay.open{display:flex}
+.modal{background:var(--surface-overlay); border-radius:6px; width:480px; max-width:92vw;
+  max-height:80vh; overflow:auto; box-shadow:0 8px 28px var(--shadow); padding:24px}
+.modal h3{margin-bottom:8px; font-size:20px}
+.modal .footer{display:flex; justify-content:flex-end; gap:8px; margin-top:24px}
+
+/* ---- misc ---- */
+.row{display:flex; align-items:center; gap:16px}
+.avatar{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
+  border-radius:50%; background:var(--brand); color:var(--text-inverse); font-size:11px;
+  font-weight:600; margin-right:8px; flex-shrink:0}
+.chipbox{display:flex; flex-wrap:wrap; gap:6px; padding:6px; border:2px solid var(--border);
+  border-radius:3px; background:var(--surface-sunken); min-height:40px}
+.chip{display:inline-flex; align-items:center; gap:6px; background:var(--bg-neutral);
+  border-radius:3px; padding:2px 4px 2px 8px; font-size:13px}
+.chip button{border:none; background:none; cursor:pointer; color:var(--text-subtlest); font-size:13px; padding:2px 4px}
+.chip button:hover{color:var(--text-danger)}
+.mockbar{display:flex; align-items:center; gap:16px; background:var(--bg-neutral);
+  padding:10px 12px; border-radius:6px; margin-bottom:24px}
+.subtle-text{color:var(--text-subtlest)}
+.danger-text{color:var(--text-danger)}
+.pagecard{border:1px solid var(--border); border-radius:6px; padding:16px}
+.history-row{display:flex; gap:16px; padding:10px 0; border-bottom:1px solid var(--border)}
+.history-row .when{min-width:150px; color:var(--text-subtlest); font-variant-numeric:tabular-nums}
+.empty{ text-align:center; padding:48px 24px; max-width:420px; margin:0 auto}
+.empty .art{font-size:44px; margin-bottom:12px}
+.toolbar{display:flex; align-items:center; gap:12px; margin:0 0 16px 0}
+.toolbar h2{flex:1}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <h4 data-i18n="shell.title"></h4>
+    <button class="btn subtle full nav" data-screen="macro"     data-i18n="shell.nav.macro"></button>
+    <button class="btn subtle full nav" data-screen="byline"    data-i18n="shell.nav.byline"></button>
+    <button class="btn subtle full nav" data-screen="config"    data-i18n="shell.nav.config"></button>
+    <button class="btn subtle full nav" data-screen="dashboard" data-i18n="shell.nav.dashboard"></button>
+    <button class="btn subtle full nav" data-screen="detail"    data-i18n="shell.nav.detail"></button>
+    <button class="btn subtle full nav" data-screen="settings"  data-i18n="shell.nav.settings"></button>
+    <div class="spacer"></div>
+    <div class="field">
+      <label data-i18n="shell.theme"></label>
+      <select id="themeSel" style="width:100%;min-width:0">
+        <option value="light" data-i18n="shell.theme.light"></option>
+        <option value="dark" data-i18n="shell.theme.dark"></option>
+        <option value="auto" data-i18n="shell.theme.auto"></option>
+      </select>
+    </div>
+    <div class="field">
+      <label data-i18n="shell.language"></label>
+      <select id="localeSel" style="width:100%;min-width:0">
+        <option value="en">English</option>
+        <option value="tr">Türkçe</option>
+      </select>
+    </div>
+  </nav>
+
+  <main>
+    <div class="msg discovery"><span class="icon">◈</span><div><span data-i18n="shell.mockNote"></span></div></div>
+
+    <!-- ============ MACRO ============ -->
+    <section class="screen" id="screen-macro">
+      <div class="mockbar">
+        <label><span class="subtle-text" data-i18n="macro.demo.state"></span>
+          <select id="macroStateSel" style="min-width:90px;height:32px;margin-left:8px">
+            <option>R1</option><option>R3</option><option>R4</option>
+            <option>R5</option><option>R6</option><option>R7</option>
+          </select>
+        </label>
+        <label class="toggle-row" style="margin:0">
+          <span class="switch"><input type="checkbox" id="macroFail"><span class="slider"></span></span>
+          <span data-i18n="macro.demo.failToggle"></span>
+        </label>
+      </div>
+      <div id="macroBox" style="max-width:620px"></div>
+    </section>
+
+    <!-- ============ BYLINE ============ -->
+    <section class="screen" id="screen-byline">
+      <div class="pagecard" style="max-width:620px">
+        <h3>Security Policy v3</h3>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap">
+          <span class="subtle-text">Ayşe Yılmaz · 12 Jul 2026 ·</span>
+          <span class="loz clickable" id="chipRequired" onclick="openByline('required')">● <span data-i18n="byline.required"></span></span>
+          <span class="loz success clickable" onclick="openByline('confirmed')">✔ <span id="bylineConfirmedChip"></span></span>
+          <span class="loz moved clickable" onclick="openByline('required')">⚠ <span data-i18n="byline.expired"></span></span>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:16px" data-i18n="byline.hiddenNote"></p>
+    </section>
+
+    <!-- ============ CONFIG ============ -->
+    <section class="screen" id="screen-config">
+      <button class="btn primary" onclick="openModal('configModal')" data-i18n="config.open"></button>
+    </section>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section class="screen" id="screen-dashboard">
+      <div class="toolbar">
+        <h2 data-i18n="dashboard.title"></h2>
+        <button class="btn primary" onclick="openModal('exportModal')" data-i18n="dashboard.export"></button>
+      </div>
+      <div class="row" style="margin-bottom:16px">
+        <select id="fSpace"></select>
+        <select id="fStatus"></select>
+        <div class="spacer"></div>
+        <label class="toggle-row" style="margin:0">
+          <span class="switch"><input type="checkbox" id="emptyToggle" onchange="renderDashboard()"><span class="slider"></span></span>
+          <span class="subtle-text" data-i18n="dashboard.emptyToggle"></span>
+        </label>
+      </div>
+      <div id="dashBody"></div>
+    </section>
+
+    <!-- ============ DETAIL ============ -->
+    <section class="screen" id="screen-detail">
+      <button class="btn subtle" onclick="show('dashboard')">← <span data-i18n="detail.back"></span></button>
+      <div class="toolbar" style="margin-top:12px">
+        <h2 id="detailTitle"></h2>
+        <button class="btn" data-i18n="dashboard.export"></button>
+        <button class="btn" disabled title="v1.1" data-i18n="detail.remind"></button>
+      </div>
+      <p class="subtle-text" id="detailSummary"></p>
+      <div class="tabs" id="detailTabs"></div>
+      <div id="detailPanels"></div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="screen" id="screen-settings">
+      <h2 data-i18n="settings.title"></h2>
+      <div class="field" style="max-width:480px">
+        <label data-i18n="settings.managers"></label>
+        <select style="width:100%"><option>hr-team</option><option>sec-all</option><option>compliance</option></select>
+        <p class="hint" data-i18n="settings.managers.hint"></p>
+      </div>
+      <div class="field">
+        <label data-i18n="settings.defaults"></label>
+        <label class="toggle-row" style="margin-top:8px">
+          <span class="switch"><input type="checkbox"><span class="slider"></span></span>
+          <span data-i18n="settings.defaults.reconfirm"></span>
+        </label>
+      </div>
+      <div class="field">
+        <button class="btn" data-i18n="settings.exportAll"></button>
+        <p class="hint" data-i18n="settings.exportAll.hint"></p>
+      </div>
+      <div class="field" style="max-width:560px">
+        <div class="msg warning"><span class="icon">⚠</span><div>
+          <div class="title" data-i18n="settings.lifecycle.title"></div>
+          <p data-i18n="settings.lifecycle.body"></p>
+        </div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="overlay" id="bylineModal"><div class="modal" style="width:400px">
+  <h3 data-i18n="byline.dialog.title"></h3>
+  <div id="bylineDialogBody"></div>
+  <div class="footer"><button class="btn subtle" onclick="closeModal('bylineModal')" data-i18n="common.close"></button></div>
+</div></div>
+
+<div class="overlay" id="configModal"><div class="modal" style="width:520px">
+  <h3 data-i18n="config.title"></h3>
+  <div style="font-weight:500; margin-top:12px" data-i18n="config.who"></div>
+  <div class="field">
+    <label data-i18n="config.users"></label>
+    <div class="chipbox" id="userChips"></div>
+    <select id="userAdd" style="margin-top:6px; width:100%"></select>
+  </div>
+  <div class="field">
+    <label data-i18n="config.groups"></label>
+    <div class="chipbox" id="groupChips"></div>
+    <select id="groupAdd" style="margin-top:6px; width:100%"></select>
+  </div>
+  <p class="hint">ⓘ <span data-i18n="config.groupsHint"></span></p>
+  <div class="field">
+    <label><span data-i18n="config.dueDate"></span> <span class="loz new" data-i18n="config.v11"></span></label>
+    <input type="date" value="2026-08-15">
+  </div>
+  <label class="toggle-row">
+    <span class="switch"><input type="checkbox" checked><span class="slider"></span></span>
+    <span><span data-i18n="config.reconfirm"></span> <span class="loz new" data-i18n="config.v11"></span></span>
+  </label>
+  <div id="voluntaryNote" style="margin-top:16px; display:none">
+    <div class="msg info"><span class="icon">🛈</span><div><span data-i18n="config.voluntaryNote"></span></div></div>
+  </div>
+  <div class="footer">
+    <button class="btn subtle" onclick="closeModal('configModal')" data-i18n="common.cancel"></button>
+    <button class="btn primary" onclick="closeModal('configModal')" data-i18n="common.save"></button>
+  </div>
+</div></div>
+
+<div class="overlay" id="exportModal"><div class="modal" style="width:440px">
+  <h3 data-i18n="export.title"></h3>
+  <div class="field"><label data-i18n="export.format"></label>
+    <label style="margin-right:16px"><input type="radio" name="fmt" checked> CSV</label>
+    <label><input type="radio" name="fmt"> PDF</label>
+  </div>
+  <div class="field"><label data-i18n="export.scope"></label>
+    <label style="display:block"><input type="radio" name="scope"> <span data-i18n="export.scope.page"></span></label>
+    <label style="display:block"><input type="radio" name="scope"> <span data-i18n="export.scope.space"></span></label>
+    <label style="display:block"><input type="radio" name="scope" checked> <span data-i18n="export.scope.site"></span></label>
+  </div>
+  <div class="field"><label data-i18n="export.dateRange"></label>
+    <div class="row"><input type="date" style="flex:1"><input type="date" style="flex:1"></div>
+  </div>
+  <div id="exportProgress" style="display:none; margin-top:16px">
+    <p data-i18n="export.progress"></p>
+    <div class="progress indeterminate"><div class="track"><div class="fill" style="width:30%"></div></div></div>
+  </div>
+  <div class="footer">
+    <button class="btn subtle" onclick="closeModal('exportModal')" data-i18n="common.cancel"></button>
+    <button class="btn primary" id="exportGo" data-i18n="export.start"></button>
+  </div>
+</div></div>
+
+<script>
+/* ================= i18n ================= */
+const MESSAGES = {
+en:{
+ 'shell.title':'Read Confirmation — mockups','shell.theme':'Theme','shell.theme.light':'Light','shell.theme.dark':'Dark','shell.theme.auto':'Match system','shell.language':'Language',
+ 'shell.nav.macro':'Macro (reader)','shell.nav.byline':'Byline item','shell.nav.config':'Assignment config','shell.nav.dashboard':'Dashboard','shell.nav.detail':'Page drill-down','shell.nav.settings':'Settings',
+ 'shell.mockNote':'Interactive mockup — all data is fake, no backend calls.',
+ 'common.save':'Save','common.cancel':'Cancel','common.close':'Close','common.loadMore':'Load more',
+ 'status.confirmed':'Confirmed','status.outstanding':'Outstanding','status.expired':'Re-confirmation required','status.cannot-view':'Cannot view','status.voluntary':'Voluntary',
+ 'macro.confirmButton':'I have read and understood this page',
+ 'macro.required.title':'Read confirmation required','macro.required.body':'Your acknowledgement of this page is requested.',
+ 'macro.due':'Due: {date}',
+ 'macro.confirmed.title':'Confirmed','macro.confirmed.body':'You confirmed version {version} on {datetime}.',
+ 'macro.changed.title':'This page has changed since you confirmed it','macro.changed.body':'You confirmed version {oldVersion}; the page is now version {newVersion}.',
+ 'macro.voluntary.body':'This page asks readers to acknowledge it.',
+ 'macro.error.title':'We couldn’t record your confirmation','macro.error.body':'Nothing was saved. Please try again.',
+ 'macro.midread.title':'This page was just updated','macro.midread.body':'Please review the latest version before confirming.','macro.midread.reload':'Reload page',
+ 'macro.demo.state':'Mock state','macro.demo.failToggle':'Simulate storage failure',
+ 'byline.required':'Confirmation required','byline.confirmed':'Confirmed {date}','byline.expired':'Re-confirmation required',
+ 'byline.dialog.title':'Your read confirmation','byline.dialog.outstanding':'You are asked to confirm this page.',
+ 'byline.dialog.confirmedDetail':'You confirmed version {version} on {datetime}.',
+ 'byline.hiddenNote':'Viewers with no assignment and no record see nothing here.',
+ 'config.title':'Read confirmation settings','config.who':'Who must confirm?','config.users':'Users','config.users.placeholder':'Add individual users…',
+ 'config.groups':'Groups','config.groups.placeholder':'Add groups…','config.groupsHint':'For teams, prefer groups — new members are included automatically.',
+ 'config.dueDate':'Due date','config.reconfirm':'Require re-confirmation when the page changes','config.v11':'v1.1',
+ 'config.voluntaryNote':'No required readers — confirmations will be voluntary.','config.open':'Open configuration',
+ 'dashboard.title':'Read confirmations','dashboard.export':'Export',
+ 'dashboard.filter.space.all':'All spaces','dashboard.filter.status.all':'All','dashboard.filter.status.incomplete':'Incomplete','dashboard.filter.status.complete':'Complete','dashboard.filter.status.overdue':'Overdue',
+ 'dashboard.col.page':'Page','dashboard.col.space':'Space','dashboard.col.assigned':'Assigned','dashboard.col.confirmed':'Confirmed','dashboard.col.percent':'%','dashboard.col.due':'Due',
+ 'dashboard.voluntaryTooltip':'Voluntary-only page — no required readers.','dashboard.deletedPage':'[deleted page {id}]',
+ 'dashboard.empty.header':'Start tracking read confirmations','dashboard.empty.description':'Add the Read confirmation macro to any page to start tracking who has read it.','dashboard.empty.action':'Open documentation','dashboard.emptyToggle':'Show empty state',
+ 'export.title':'Export confirmations','export.format':'Format','export.scope':'Scope','export.scope.page':'This page','export.scope.space':'Space','export.scope.site':'Entire site',
+ 'export.dateRange':'Date range (optional)','export.start':'Export','export.progress':'Preparing export — fetching records…',
+ 'detail.back':'Back to dashboard','detail.summary':'{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',
+ 'detail.tab.outstanding':'Outstanding','detail.tab.confirmed':'Confirmed','detail.tab.voluntary':'Voluntary','detail.tab.cannotView':'Cannot view','detail.tab.history':'History',
+ 'detail.remind':'Remind','detail.assignedViaGroup':'assigned via group: {group}','detail.assignedDirectly':'assigned directly',
+ 'detail.expiredNote':'confirmed v{oldVersion} — page now v{newVersion}',
+ 'detail.col.user':'User','detail.col.assignment':'Assignment','detail.col.version':'Version','detail.col.confirmedAt':'Confirmed at (UTC)',
+ 'detail.cannotView.hint':'These assigned users cannot view the page. Grant page permission or remove them from the assignment.',
+ 'detail.history.assigned':'{actor} assigned {subject}','detail.history.removed':'{actor} removed {subject}','detail.history.dueDate':'{actor} set due date to {date}',
+ 'detail.groupDeleted':'group deleted',
+ 'settings.title':'Read Confirmation — settings','settings.managers':'Compliance managers group',
+ 'settings.managers.hint':'Members of this group can open the dashboard and export data without being Confluence admins.',
+ 'settings.defaults':'Defaults for new configurations','settings.defaults.reconfirm':'Require re-confirmation when pages change',
+ 'settings.exportAll':'Export all data','settings.exportAll.hint':'One CSV with every confirmation record on this site.',
+ 'settings.lifecycle.title':'Data lifecycle',
+ 'settings.lifecycle.body':'Uninstalling the app deletes its data after a 28-day retention window. Export before uninstalling. Reinstalling starts empty; recovery within 21 days requires an Atlassian support request.',
+},
+tr:{
+ 'shell.title':'Okuma Onayı — mockup','shell.theme':'Tema','shell.theme.light':'Açık','shell.theme.dark':'Koyu','shell.theme.auto':'Sisteme uy','shell.language':'Dil',
+ 'shell.nav.macro':'Makro (okuyucu)','shell.nav.byline':'Byline öğesi','shell.nav.config':'Atama ayarları','shell.nav.dashboard':'Kontrol paneli','shell.nav.detail':'Sayfa detayı','shell.nav.settings':'Ayarlar',
+ 'shell.mockNote':'Etkileşimli mockup — tüm veriler sahtedir, arka uç çağrısı yapılmaz.',
+ 'common.save':'Kaydet','common.cancel':'İptal','common.close':'Kapat','common.loadMore':'Daha fazla yükle',
+ 'status.confirmed':'Onaylandı','status.outstanding':'Bekliyor','status.expired':'Yeniden onay gerekli','status.cannot-view':'Görüntüleyemiyor','status.voluntary':'Gönüllü',
+ 'macro.confirmButton':'Bu sayfayı okudum ve anladım',
+ 'macro.required.title':'Okuma onayı gerekli','macro.required.body':'Bu sayfayı okuduğunuzu onaylamanız isteniyor.',
+ 'macro.due':'Son tarih: {date}',
+ 'macro.confirmed.title':'Onaylandı','macro.confirmed.body':'{version} numaralı sürümü {datetime} tarihinde onayladınız.',
+ 'macro.changed.title':'Bu sayfa, onayınızdan sonra değişti','macro.changed.body':'{oldVersion} numaralı sürümü onaylamıştınız; sayfa şu anda {newVersion} sürümünde.',
+ 'macro.voluntary.body':'Bu sayfa, okuyucuların okuduğunu onaylamasını istiyor.',
+ 'macro.error.title':'Onayınız kaydedilemedi','macro.error.body':'Hiçbir şey kaydedilmedi. Lütfen tekrar deneyin.',
+ 'macro.midread.title':'Bu sayfa az önce güncellendi','macro.midread.body':'Onaylamadan önce lütfen en son sürümü inceleyin.','macro.midread.reload':'Sayfayı yenile',
+ 'macro.demo.state':'Mock durumu','macro.demo.failToggle':'Depolama hatasını simüle et',
+ 'byline.required':'Onay gerekli','byline.confirmed':'{date} tarihinde onaylandı','byline.expired':'Yeniden onay gerekli',
+ 'byline.dialog.title':'Okuma onayınız','byline.dialog.outstanding':'Bu sayfayı onaylamanız isteniyor.',
+ 'byline.dialog.confirmedDetail':'{version} numaralı sürümü {datetime} tarihinde onayladınız.',
+ 'byline.hiddenNote':'Ataması ve kaydı olmayan okuyucular burada hiçbir şey görmez.',
+ 'config.title':'Okuma onayı ayarları','config.who':'Kimler onaylamalı?','config.users':'Kullanıcılar','config.users.placeholder':'Tek tek kullanıcı ekleyin…',
+ 'config.groups':'Gruplar','config.groups.placeholder':'Grup ekleyin…','config.groupsHint':'Ekipler için grupları tercih edin — yeni üyeler otomatik dahil edilir.',
+ 'config.dueDate':'Son tarih','config.reconfirm':'Sayfa değiştiğinde yeniden onay iste','config.v11':'v1.1',
+ 'config.voluntaryNote':'Zorunlu okuyucu yok — onaylar gönüllü olacaktır.','config.open':'Ayarları aç',
+ 'dashboard.title':'Okuma onayları','dashboard.export':'Dışa aktar',
+ 'dashboard.filter.space.all':'Tüm alanlar','dashboard.filter.status.all':'Tümü','dashboard.filter.status.incomplete':'Tamamlanmamış','dashboard.filter.status.complete':'Tamamlanmış','dashboard.filter.status.overdue':'Gecikmiş',
+ 'dashboard.col.page':'Sayfa','dashboard.col.space':'Alan','dashboard.col.assigned':'Atanan','dashboard.col.confirmed':'Onaylayan','dashboard.col.percent':'%','dashboard.col.due':'Son tarih',
+ 'dashboard.voluntaryTooltip':'Yalnızca gönüllü sayfa — zorunlu okuyucu yok.','dashboard.deletedPage':'[silinmiş sayfa {id}]',
+ 'dashboard.empty.header':'Okuma onaylarını takip etmeye başlayın','dashboard.empty.description':'Kimlerin okuduğunu takip etmek için herhangi bir sayfaya Okuma Onayı makrosunu ekleyin.','dashboard.empty.action':'Dokümantasyonu aç','dashboard.emptyToggle':'Boş durumu göster',
+ 'export.title':'Onayları dışa aktar','export.format':'Biçim','export.scope':'Kapsam','export.scope.page':'Bu sayfa','export.scope.space':'Alan','export.scope.site':'Tüm site',
+ 'export.dateRange':'Tarih aralığı (isteğe bağlı)','export.start':'Dışa aktar','export.progress':'Dışa aktarma hazırlanıyor — kayıtlar getiriliyor…',
+ 'detail.back':'Kontrol paneline dön','detail.summary':'{assigned} atanandan {confirmed} onayladı · {outstanding} bekliyor · {cannotView} görüntüleyemiyor',
+ 'detail.tab.outstanding':'Bekleyenler','detail.tab.confirmed':'Onaylayanlar','detail.tab.voluntary':'Gönüllüler','detail.tab.cannotView':'Görüntüleyemeyenler','detail.tab.history':'Geçmiş',
+ 'detail.remind':'Hatırlat','detail.assignedViaGroup':'grup üzerinden atandı: {group}','detail.assignedDirectly':'doğrudan atandı',
+ 'detail.expiredNote':'v{oldVersion} onaylandı — sayfa şimdi v{newVersion}',
+ 'detail.col.user':'Kullanıcı','detail.col.assignment':'Atama','detail.col.version':'Sürüm','detail.col.confirmedAt':'Onay zamanı (UTC)',
+ 'detail.cannotView.hint':'Bu atanan kullanıcılar sayfayı görüntüleyemiyor. Sayfa izni verin veya atamadan çıkarın.',
+ 'detail.history.assigned':'{actor}, {subject} ataması yaptı','detail.history.removed':'{actor}, {subject} atamasını kaldırdı','detail.history.dueDate':'{actor}, son tarihi {date} olarak ayarladı',
+ 'detail.groupDeleted':'grup silinmiş',
+ 'settings.title':'Okuma Onayı — ayarlar','settings.managers':'Uyum yöneticileri grubu',
+ 'settings.managers.hint':'Bu grubun üyeleri, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',
+ 'settings.defaults':'Yeni yapılandırmalar için varsayılanlar','settings.defaults.reconfirm':'Sayfalar değiştiğinde yeniden onay iste',
+ 'settings.exportAll':'Tüm veriyi dışa aktar','settings.exportAll.hint':'Bu sitedeki tüm onay kayıtlarını içeren tek bir CSV.',
+ 'settings.lifecycle.title':'Veri yaşam döngüsü',
+ 'settings.lifecycle.body':'Uygulama kaldırıldığında verileri 28 günlük saklama süresinin ardından silinir. Kaldırmadan önce dışa aktarın. Yeniden kurulum boş başlar; 21 gün içinde kurtarma için Atlassian destek talebi gerekir.',
+}};
+let locale = 'en';
+const t = (k, args) => {
+  let s = (MESSAGES[locale][k] ?? MESSAGES.en[k] ?? k);
+  if (args) for (const [a,v] of Object.entries(args)) s = s.replace('{'+a+'}', v);
+  return s;
+};
+const fmtDate = iso => new Intl.DateTimeFormat(locale,{day:'2-digit',month:'short',year:'numeric'}).format(new Date(iso));
+const fmtDateShort = iso => new Intl.DateTimeFormat(locale,{day:'2-digit',month:'short'}).format(new Date(iso));
+const fmtDateTime = iso => new Intl.DateTimeFormat(locale,{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso));
+const fmtUTC = iso => new Intl.DateTimeFormat(locale,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'UTC'}).format(new Date(iso));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================= mock data ================= */
+const PAGES = [
+ {id:'163845', title:'Security Policy v3',        space:'SEC',   version:7,  assigned:142, confirmed:89, cannotView:2, due:'2026-08-15'},
+ {id:'163900', title:'Code of Conduct',           space:'HR',    version:3,  assigned:12,  confirmed:12, cannotView:0},
+ {id:'164101', title:'Incident Response SOP',     space:'SEC',   version:12, assigned:38,  confirmed:9,  cannotView:0, due:'2026-08-01', overdue:true},
+ {id:'164230', title:'Onboarding Handbook',       space:'HR',    version:21, assigned:0,   confirmed:4,  cannotView:0, voluntaryOnly:true},
+ {id:'164555', title:'GDPR Data Handling Guide',  space:'LEGAL', version:5,  assigned:57,  confirmed:31, cannotView:1, due:'2026-09-01'},
+ {id:'159990', title:'',                          space:'SEC',   version:2,  assigned:8,   confirmed:3,  cannotView:0, deleted:true},
+];
+const USERS = [
+ {name:'Ayşe Yılmaz',   via:['group','sec-all'],     status:'outstanding'},
+ {name:'John Carter',   via:['direct'],              status:'outstanding'},
+ {name:'Elif Kaya',     via:['group','sec-all'],     status:'expired', old:5},
+ {name:'Mehmet Demir',  via:['group','sec-all'],     status:'confirmed', version:7, at:'2026-07-12T11:03:00Z'},
+ {name:'Sara Lindqvist',via:['direct'],              status:'confirmed', version:7, at:'2026-07-11T14:22:00Z'},
+ {name:'Deniz Aksoy',   via:['group','contractors'], status:'cannot-view'},
+ {name:'Marco Rossi',   via:['group','contractors'], status:'cannot-view'},
+ {name:'Zeynep Arslan', via:['direct'],              status:'voluntary', version:7, at:'2026-07-10T09:15:00Z'},
+];
+const HISTORY = [
+ {kind:'assigned', actor:'Burak Tutus',  subject:'group sec-all',      at:'2026-06-01T10:00:00Z'},
+ {kind:'dueDate',  actor:'Burak Tutus',  date:'2026-08-15',            at:'2026-06-01T10:01:00Z'},
+ {kind:'assigned', actor:'Selin Öztürk', subject:'John Carter',        at:'2026-06-14T13:37:00Z'},
+ {kind:'removed',  actor:'Selin Öztürk', subject:'group interns-2025', at:'2026-06-20T09:12:00Z'},
+];
+const PICK_USERS = ['Ayşe Yılmaz','John Carter','Elif Kaya','Mehmet Demir','Sara Lindqvist','Zeynep Arslan'];
+const PICK_GROUPS = ['sec-all','hr-team','contractors','engineering'];
+const CONFIRMED_AT = '2026-07-12T11:03:00Z';
+
+/* ================= shell: theme / locale / nav ================= */
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+let themeMode = 'auto';
+function applyTheme(){
+  const resolved = themeMode === 'auto' ? (mq.matches ? 'dark' : 'light') : themeMode;
+  document.documentElement.dataset.colorMode = resolved;
+}
+mq.addEventListener('change', applyTheme);
+document.getElementById('themeSel').addEventListener('change', e => { themeMode = e.target.value; applyTheme(); });
+
+function applyI18n(){
+  document.documentElement.lang = locale;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.getElementById('bylineConfirmedChip').textContent = t('byline.confirmed',{date:fmtDate(CONFIRMED_AT)});
+  renderFilters(); renderMacro(); renderDashboard(); renderDetail(); renderPickers();
+}
+document.getElementById('localeSel').addEventListener('change', e => { locale = e.target.value; applyI18n(); });
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  document.querySelectorAll('.nav').forEach(b =>
+    b.classList.toggle('selected', b.dataset.screen === id));
+  history.replaceState(null,'','#'+id);
+  if (id === 'config') openModal('configModal'); // mirrors openOnInsert (tech design §11.6)
+}
+document.querySelectorAll('.nav').forEach(b => b.addEventListener('click', () => show(b.dataset.screen)));
+
+/* ================= modals ================= */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+
+/* ================= macro (R1–R7, pessimistic UI) ================= */
+let macroState = 'R1';
+function confirmBtn(){
+  return `<button class="btn primary" id="macroConfirm" onclick="doConfirm()">
+    <span class="spinner"></span>${esc(t('macro.confirmButton'))}</button>`;
+}
+function renderMacro(){
+  const box = document.getElementById('macroBox');
+  const S = macroState;
+  if (S==='R1'||S==='R2') box.innerHTML =
+    `<div class="msg info"><span class="icon">🛈</span><div>
+      <div class="title">${esc(t('macro.required.title'))}</div>
+      <p>${esc(t('macro.required.body'))}</p>
+      <p>${esc(t('macro.due',{date:fmtDate('2026-08-15')}))}</p>
+      <p style="margin-top:12px">${confirmBtn()}</p></div></div>`;
+  else if (S==='R3') box.innerHTML =
+    `<div class="msg success"><span class="icon">✔</span><div>
+      <div class="title">${esc(t('macro.confirmed.title'))}</div>
+      <p aria-live="polite">${esc(t('macro.confirmed.body',{version:7,datetime:fmtDateTime(CONFIRMED_AT)}))}</p></div></div>`;
+  else if (S==='R4') box.innerHTML =
+    `<div class="msg warning"><span class="icon">⚠</span><div>
+      <div class="title">${esc(t('macro.changed.title'))}</div>
+      <p>${esc(t('macro.changed.body',{oldVersion:5,newVersion:7}))}</p>
+      <p style="margin-top:12px">${confirmBtn()}</p></div></div>`;
+  else if (S==='R5') box.innerHTML =
+    `<div class="msg info"><span class="icon">🛈</span><div>
+      <p>${esc(t('macro.voluntary.body'))}</p>
+      <p style="margin-top:12px">${confirmBtn()}</p></div></div>`;
+  else if (S==='R6') box.innerHTML =
+    `<div class="msg error"><span class="icon">✖</span><div>
+      <div class="title">${esc(t('macro.error.title'))}</div>
+      <p aria-live="polite">${esc(t('macro.error.body'))}</p>
+      <p style="margin-top:12px">${confirmBtn()}</p></div></div>`;
+  else if (S==='R7') box.innerHTML =
+    `<div class="msg info"><span class="icon">🛈</span><div>
+      <div class="title">${esc(t('macro.midread.title'))}</div>
+      <p>${esc(t('macro.midread.body'))}</p>
+      <p style="margin-top:12px"><button class="btn" onclick="macroState='R1';renderMacro()">${esc(t('macro.midread.reload'))}</button></p></div></div>`;
+  if (S==='R2'){ const b=document.getElementById('macroConfirm'); if(b) b.classList.add('loading'); }
+}
+function doConfirm(){
+  macroState='R2'; renderMacro();
+  setTimeout(() => {
+    macroState = document.getElementById('macroFail').checked ? 'R6' : 'R3';
+    renderMacro();
+    document.getElementById('macroStateSel').value = macroState==='R6'?'R6':'R3';
+  }, 900);
+}
+document.getElementById('macroStateSel').addEventListener('change', e => { macroState=e.target.value; renderMacro(); });
+
+/* ================= byline dialog ================= */
+function openByline(kind){
+  const body = document.getElementById('bylineDialogBody');
+  body.innerHTML = kind === 'confirmed'
+    ? `<div class="msg success"><span class="icon">✔</span><div>
+        <div class="title">${esc(t('macro.confirmed.title'))}</div>
+        <p>${esc(t('byline.dialog.confirmedDetail',{version:7,datetime:fmtDateTime(CONFIRMED_AT)}))}</p></div></div>`
+    : `<p>${esc(t('byline.dialog.outstanding'))}</p>
+       <p style="margin-top:12px"><button class="btn primary" onclick="openByline('confirmed')">${esc(t('macro.confirmButton'))}</button></p>`;
+  openModal('bylineModal');
+}
+
+/* ================= config pickers ================= */
+let selUsers = [], selGroups = ['sec-all'];
+function renderPickers(){
+  const render = (chips, list, addSel, placeholderKey, all) => {
+    document.getElementById(chips).innerHTML = list.map(v =>
+      `<span class="chip">${esc(v)}<button onclick="removePick('${chips}','${esc(v)}')">✕</button></span>`).join('');
+    const sel = document.getElementById(addSel);
+    sel.innerHTML = `<option value="">${esc(t(placeholderKey))}</option>` +
+      all.filter(o => !list.includes(o)).map(o => `<option>${esc(o)}</option>`).join('');
+  };
+  render('userChips', selUsers, 'userAdd', 'config.users.placeholder', PICK_USERS);
+  render('groupChips', selGroups, 'groupAdd', 'config.groups.placeholder', PICK_GROUPS);
+  document.getElementById('voluntaryNote').style.display =
+    selUsers.length + selGroups.length === 0 ? 'block' : 'none';
+}
+function removePick(box, val){
+  if (box==='userChips') selUsers = selUsers.filter(v=>v!==val);
+  else selGroups = selGroups.filter(v=>v!==val);
+  renderPickers();
+}
+document.getElementById('userAdd').addEventListener('change', e => { if(e.target.value){selUsers.push(e.target.value); renderPickers();} });
+document.getElementById('groupAdd').addEventListener('change', e => { if(e.target.value){selGroups.push(e.target.value); renderPickers();} });
+
+/* ================= dashboard ================= */
+function renderFilters(){
+  const fs = document.getElementById('fSpace');
+  fs.innerHTML = `<option value="">${esc(t('dashboard.filter.space.all'))}</option>` +
+    ['SEC','HR','LEGAL'].map(s=>`<option${fs.value===s?' selected':''}>${s}</option>`).join('');
+  const st = document.getElementById('fStatus');
+  const cur = st.value || 'all';
+  st.innerHTML = ['all','incomplete','complete','overdue'].map(v =>
+    `<option value="${v}"${cur===v?' selected':''}>${esc(t('dashboard.filter.status.'+v))}</option>`).join('');
+}
+function progressCell(p){
+  if (p.deleted) return '—';
+  if (p.voluntaryOnly || p.assigned===0) return `<span title="${esc(t('dashboard.voluntaryTooltip'))}">—</span>`;
+  const pct = Math.round(100*p.confirmed/p.assigned);
+  return `<div class="progress${pct>=100?' complete':''}"><span class="pct">${pct}%</span>
+    <div class="track"><div class="fill" style="width:${pct}%"></div></div></div>`;
+}
+function renderDashboard(){
+  const body = document.getElementById('dashBody');
+  if (document.getElementById('emptyToggle').checked){
+    body.innerHTML = `<div class="empty"><div class="art">📋</div>
+      <h3>${esc(t('dashboard.empty.header'))}</h3>
+      <p class="subtle-text" style="margin:8px 0 16px">${esc(t('dashboard.empty.description'))}</p>
+      <button class="btn primary">${esc(t('dashboard.empty.action'))}</button></div>`;
+    return;
+  }
+  const space = document.getElementById('fSpace').value;
+  const status = document.getElementById('fStatus').value || 'all';
+  const rows = PAGES.filter(p => {
+    if (space && p.space!==space) return false;
+    if (status==='complete')   return p.assigned>0 && p.confirmed>=p.assigned;
+    if (status==='incomplete') return p.assigned>0 && p.confirmed<p.assigned;
+    if (status==='overdue')    return !!p.overdue;
+    return true;
+  }).map(p => {
+    const title = p.deleted
+      ? `<span class="subtle-text" style="font-style:italic">${esc(t('dashboard.deletedPage',{id:p.id}))}</span>`
+      : `<a href="#detail" onclick="openDetail('${p.id}')">${esc(p.title)}</a>`;
+    const due = p.due
+      ? `<span class="${p.overdue?'danger-text':''}">${p.overdue?'⚠ ':''}${fmtDateShort(p.due)}</span>` : '—';
+    return `<tr><td>${title}</td><td>${p.space}</td>
+      <td>${p.voluntaryOnly?'—':p.assigned}</td><td>${p.confirmed}</td>
+      <td>${progressCell(p)}</td><td>${due}</td></tr>`;
+  }).join('');
+  body.innerHTML = `<table><thead><tr>
+      <th>${esc(t('dashboard.col.page'))}</th><th>${esc(t('dashboard.col.space'))}</th>
+      <th>${esc(t('dashboard.col.assigned'))}</th><th>${esc(t('dashboard.col.confirmed'))}</th>
+      <th style="width:180px">${esc(t('dashboard.col.percent'))}</th><th>${esc(t('dashboard.col.due'))}</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <p><button class="btn subtle">${esc(t('common.loadMore'))}</button></p>`;
+}
+document.getElementById('fSpace').addEventListener('change', renderDashboard);
+document.getElementById('fStatus').addEventListener('change', renderDashboard);
+function openDetail(id){ show('detail'); renderDetail(id); }
+
+/* export modal fake progress */
+document.getElementById('exportGo').addEventListener('click', () => {
+  const prog = document.getElementById('exportProgress');
+  prog.style.display='block';
+  setTimeout(() => { prog.style.display='none'; closeModal('exportModal'); }, 1600);
+});
+
+/* ================= detail ================= */
+let detailPage = '163845', detailTab = 0;
+function avatar(name){
+  const ini = name.split(' ').map(w=>w[0]).join('').slice(0,2);
+  return `<span class="avatar">${esc(ini)}</span>`;
+}
+function assignmentCell(u){
+  if (u.via[0]==='direct') return esc(t('detail.assignedDirectly'));
+  let s = esc(t('detail.assignedViaGroup',{group:u.via[1]}));
+  if (u.via[1]==='interns-2025') s += ` <span class="loz removed">${esc(t('detail.groupDeleted'))}</span>`;
+  return s;
+}
+function lozFor(u, page){
+  const cls = {confirmed:'success', outstanding:'', expired:'moved', 'cannot-view':'removed', voluntary:'new'}[u.status];
+  const tip = u.status==='expired' ? ` title="${esc(t('detail.expiredNote',{oldVersion:u.old,newVersion:page.version}))}"` : '';
+  return `<span class="loz ${cls}"${tip}>${esc(t('status.'+u.status))}</span>`;
+}
+function personTable(users, page, withCols){
+  const head = withCols
+    ? `<th>${esc(t('detail.col.user'))}</th><th>${esc(t('detail.col.assignment'))}</th><th>${esc(t('detail.col.version'))}</th><th>${esc(t('detail.col.confirmedAt'))}</th>`
+    : `<th>${esc(t('detail.col.user'))}</th><th>${esc(t('detail.col.assignment'))}</th><th></th>`;
+  const rows = users.map(u => withCols
+    ? `<tr><td>${avatar(u.name)}${esc(u.name)}</td><td>${assignmentCell(u)}</td><td>${u.version??'—'}</td><td>${u.at?fmtUTC(u.at):'—'}</td></tr>`
+    : `<tr><td>${avatar(u.name)}${esc(u.name)}</td><td>${assignmentCell(u)}</td><td>${lozFor(u,page)}</td></tr>`).join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderDetail(id){
+  if (id) { detailPage = id; detailTab = 0; }
+  const page = PAGES.find(p=>p.id===detailPage && !p.deleted) || PAGES[0];
+  document.getElementById('detailTitle').textContent = `${page.title} (v${page.version})`;
+  document.getElementById('detailSummary').textContent = t('detail.summary',{
+    confirmed:page.confirmed, assigned:page.assigned,
+    outstanding:page.assigned-page.confirmed-page.cannotView, cannotView:page.cannotView});
+  const groups = [
+    ['detail.tab.outstanding', USERS.filter(u=>u.status==='outstanding'||u.status==='expired')],
+    ['detail.tab.confirmed',   USERS.filter(u=>u.status==='confirmed')],
+    ['detail.tab.voluntary',   USERS.filter(u=>u.status==='voluntary')],
+    ['detail.tab.cannotView',  USERS.filter(u=>u.status==='cannot-view')],
+    ['detail.tab.history',     null],
+  ];
+  document.getElementById('detailTabs').innerHTML = groups.map(([key,list],i) =>
+    `<button class="tab${i===detailTab?' active':''}" onclick="detailTab=${i};renderDetail()">
+      ${esc(t(key))}${list?`<span class="badge">${list.length}</span>`:''}</button>`).join('');
+  const panels = groups.map(([key,list],i) => {
+    let inner;
+    if (key==='detail.tab.history')
+      inner = HISTORY.map(h => `<div class="history-row"><span class="when">${fmtUTC(h.at)}</span><span>${
+        h.kind==='assigned' ? esc(t('detail.history.assigned',{actor:h.actor,subject:h.subject})) :
+        h.kind==='removed'  ? esc(t('detail.history.removed',{actor:h.actor,subject:h.subject})) :
+                              esc(t('detail.history.dueDate',{actor:h.actor,date:fmtDate(h.date)}))
+      }</span></div>`).join('');
+    else if (key==='detail.tab.cannotView')
+      inner = `<div class="msg warning" style="margin-top:8px"><span class="icon">⚠</span><div><p>${esc(t('detail.cannotView.hint'))}</p></div></div>`
+        + personTable(list, page, false);
+    else
+      inner = personTable(list, page, key==='detail.tab.confirmed'||key==='detail.tab.voluntary');
+    return `<div class="tabpanel${i===detailTab?' active':''}">${inner}</div>`;
+  }).join('');
+  document.getElementById('detailPanels').innerHTML = panels;
+}
+
+/* ================= boot (deep links: ?theme=dark&locale=tr#dashboard) ================= */
+(function boot(){
+  const q = new URLSearchParams(location.search);
+  const th = q.get('theme'); if (['light','dark','auto'].includes(th)) themeMode = th;
+  document.getElementById('themeSel').value = themeMode;
+  const lo = q.get('locale'); if (MESSAGES[lo]) { locale = lo; document.getElementById('localeSel').value = lo; }
+  applyTheme();
+  applyI18n();
+  const h = location.hash.replace('#','');
+  show(['macro','byline','config','dashboard','detail','settings'].includes(h) ? h : 'macro');
+})();
+</script>
+</body>
+</html>
