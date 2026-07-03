@@ -15,6 +15,43 @@
 
 ## 2. Entities (Forge KVS custom entities)
 
+Manifest definition — exactly as validated on Forge in spike M0-1 (deployed, indexes reported `ACTIVE`; spike app since deleted, code in git history @ `f716064`):
+
+```yaml
+app:
+  storage:
+    entities:
+      - name: confirmation            # entity names must be lowercase
+        attributes:
+          pageId:      { type: string }
+          accountId:   { type: string }
+          pageVersion: { type: integer }
+          confirmedAt: { type: string }   # ISO 8601 UTC
+          spaceKey:    { type: string }
+          # + assignmentType, appVersion, schemaVersion (non-indexed, §2.1)
+        indexes:
+          - name: by-page
+            partition: [pageId]
+            range: [confirmedAt]
+          - name: by-user
+            partition: [accountId]
+            range: [confirmedAt]
+          - name: by-page-user          # macro hot path
+            partition: [pageId, accountId]
+            range: [pageVersion]
+      - name: page-config
+        attributes:
+          pageId:   { type: string }
+          active:   { type: boolean }
+          spaceKey: { type: string }
+          # + assignedUsers, assignedGroups, dueDate, … (non-indexed, §2.2)
+        indexes:
+          - name: tracked
+            partition: [active]
+            range: [spaceKey]
+      # + settings (no index), config-audit (index by-page, range = timestamp)
+```
+
 ### 2.1 `confirmation` — the audit record (immutable)
 
 Key: `confirm#{pageId}#{accountId}#{pageVersion}` (deterministic → idempotent writes, see tech design §6.1)
