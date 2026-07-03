@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test -- --passWithNoTests
+      - run: npm run build          # static/app → build/ (forge deploy uploads, never builds)
+      - name: forge lint
+        run: npx -y @forge/cli@latest lint
+      # TODO(T1): staging deploy on main merge (needs FORGE_EMAIL/FORGE_API_TOKEN secrets)
+      # TODO(T14): scope snapshot test + `forge eligibility` gate (Runs on Atlassian)

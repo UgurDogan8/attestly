@@ -1,0 +1,26 @@
+{
+  "name": "acknowledge-for-confluence",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read Confirmation app for Confluence Cloud (Forge)",
+  "workspaces": [
+    "packages/shared",
+    "static/app"
+  ],
+  "scripts": {
+    "build": "npm run build -w static/app",
+    "typecheck": "tsc --noEmit && npm run typecheck -w packages/shared -w static/app",
+    "test": "vitest run",
+    "lint:forge": "forge lint"
+  },
+  "dependencies": {
+    "@forge/api": "^8.0.0",
+    "@forge/kvs": "^1.0.0",
+    "@forge/resolver": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}

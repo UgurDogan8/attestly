@@ -1,0 +1,49 @@
+Summary,Issue Type,Epic Name,Epic Link,Story Points,Labels,Description
+M1 - Core loop,Epic,M1 - Core loop,,,read-confirm,"Exit criteria (PRD §6): a user can be assigned, confirm, and the record is queryable. Full task detail: docs/06_developer_task_list.md"
+M2 - Admin & export,Epic,M2 - Admin & export,,,read-confirm,"Exit criteria (PRD §6): dashboard + CSV and PDF export pass acceptance criteria. Full task detail: docs/06_developer_task_list.md"
+M3 - Marketplace listing,Epic,M3 - Marketplace listing,,,read-confirm,"Exit criteria (PRD §6): Marketplace submission. Full task detail: docs/06_developer_task_list.md"
+T1 Scaffold Forge app skeleton,Task,,M1 - Core loop,3,read-confirm,"Manifest per tech design §2: 4 Confluence modules on ONE multi-entry resource; scopes per §7; NO webtrigger modules ever (breaks Runs on Atlassian). npm workspaces (src backend / static-app Vite MPA / packages-shared). CI per §10. Toolchain: Forge CLI >=13, Node 22.
+Accept: forge deploy to development succeeds; all four surfaces render; CI green.
+Depends on: -"
+T2 Storage layer: KVS entities + idempotent confirm,Task,,M1 - Core loop,3,read-confirm,"Entities/indexes exactly per data model §2 (validated manifest YAML; lowercase names). Typed access + cursor pagination (§5 query code). Deterministic confirm key; read-then-write idempotency; counter bump in same KVS transaction. Append-only: no update/delete on confirmation or config-audit.
+Accept: unit tests prove idempotency and append-only invariants; indexes ACTIVE after deploy.
+Depends on: T1"
+T3 Domain layer: status computation,Task,,M1 - Core loop,2,read-confirm,"Pure TS, zero Forge imports. Status per data model §3 normative algorithm; % complete rules; voluntary exclusion; reconfirmOnChange computed from versions never events (§6.2).
+Accept: exhaustive unit tests incl. data model §7 invariants (pure, no clock reads).
+Depends on: T1"
+T4 Core resolvers with three-tier authorization,Task,,M1 - Core loop,4,read-confirm,"getPageStatus (single round-trip), confirm (asUser page read = permission proof + server-authoritative version; pageChanged per §6.3), getConfig/saveConfig (page edit perm OR compliance manager; appends config-audit). Tiers per §4: asUser viewer-scoped; asApp ONLY other-user permission checks (404 = deleted user) + deleted-vs-restricted probe.
+Accept: forged client payload cannot record wrong version; no data leaks to users without page view permission.
+Depends on: T2, T3"
+T5 Shared i18n (en/tr) + Atlaskit theming,Task,,M1 - Core loop,2,read-confirm,"Lift catalogs from mockups/index.html into packages/shared/i18n (en+tr); react-intl on all surfaces; locale+theme from Confluence context; setGlobalTheme. Confirm button copy exact, never shortened (UX §6).
+Accept: Confluence language/theme switch propagates to all surfaces; no literal strings in components.
+Depends on: T1"
+T6 Macro UI: reader states R1-R7,Task,,M1 - Core loop,3,read-confirm,"UX §2.1 + mockups: R1 required, R2 confirming (pessimistic - never optimistic confirmed), R3 confirmed, R5 voluntary, R6 retryable error, R7 changed-mid-read; R4 behind v1.1 flag. aria-live transitions; keyboard access. Multi-macro: first active, others inert warning.
+Accept: R2 to R3 only after server ack; forced storage failure shows R6 with re-enabled button.
+Depends on: T4, T5"
+T7 Assignment config modal,Task,,M1 - Core loop,4,read-confirm,"Custom UI macro config (config.resource, openOnInsert - validated M0-6). Atlaskit user-picker + group picker wired to Confluence search (resolve endpoint+scope first, §11.6 residual). Save = invoke saveConfig to KVS then view.submit empty config to close - assignment data NEVER in page ADF (§11.6). Empty = voluntary-mode notice. Due date/reconfirm shown disabled with v1.1 tag.
+Accept: assignment survives page version restore; same config editable from dashboard drill-down.
+Depends on: T4, T5"
+T8 Byline item: chip + dialog,Task,,M1 - Core loop,2,read-confirm,"UX §2.2: dynamicProperties chip (required / confirmed date / expired), hidden for uninvolved viewers, dialog reuses macro components, chip refreshes after close.
+Accept: chip correct per user situation; dialog confirm writes same record as macro.
+Depends on: T6"
+T9 Dashboard global page,Task,,M2 - Admin & export,4,read-confirm,"UX §3.2: list from tracked index + advisory counters (no record fan-out); filters; cursor Load more; progress bars; overdue; voluntary dash+tooltip; deleted rows excluded from %; empty state; no-access state. Visibility rule (§4): bulk asUser page resolution filters rows; asApp probe separates deleted (shown untitled) from viewer-restricted (omitted). Role gate: admin or compliance-managers.
+Accept: first paint <4s @ 500 pages; restricted spaces leave no trace for unpermitted managers.
+Depends on: T4, T5"
+T10 Drill-down: tabs cannot-view history,Task,,M2 - Admin & export,4,read-confirm,"UX §3.3: five tabs with counts; group membership resolved at call time (PRD B1); deleted-group badge; cannot-view checks batched concurrency ~10 with cache, 404 = deleted user (§4); counter self-heal (§5); History from config-audit. Verify real hasPermission:false with a restricted page (§11.2 residual).
+Accept: 100-user drill-down in seconds; cannot-view surfaced separately, never counted outstanding.
+Depends on: T9"
+T11 Chunked CSV export,Task,,M2 - Admin & export,3,read-confirm,"Data model §4 normative: UTF-8 BOM, RFC 4180, exact columns, outstanding rows included, deleted-page rows included, viewer-visibility applied. Cursor-chunked resolver (~10s/10k records measured - must span invocations); client assembly+download; dialog per UX §3.4.
+Accept: 10k-record export without timeout; passes test plan export fixture.
+Depends on: T9"
+T12 PDF export (client-side),Task,,M2 - Admin & export,2,read-confirm,"Same chunked dataset as CSV, no separate resolver (§4); report header (scope, exported_at_utc, app version); PDF lib bundled - zero egress must hold.
+Accept: PDF and CSV of same scope byte-equivalent in records/statuses/timestamps; sane at 1k rows.
+Depends on: T11"
+T13 Settings page,Task,,M2 - Admin & export,2,read-confirm,"UX §3.5: compliance-managers group picker, defaults (reconfirm off in v1), Export-all (reuses T11, site scope), data-lifecycle warning (28-day soft delete / 21-day recovery). Admin-only resolver gate.
+Accept: manager-group member reaches dashboard but not settings; export-all yields full-site CSV.
+Depends on: T4, T5, T11"
+T14 CI release guards,Task,,M3 - Marketplace listing,1,read-confirm,"Scope snapshot test (§10); forge eligibility in CI failing build if Runs on Atlassian eligibility lost (§7); document staging-to-production procedure.
+Accept: adding a scope or webtrigger in a test branch fails CI with clear message.
+Depends on: T1"
+T15 Marketplace listing preparation,Task,,M3 - Marketplace listing,5,read-confirm,"Security statement (no egress, no write scopes, storage:app, RoA); privacy policy per data model §5; listing assets; resolve pricing blocker (PRD §5: competitor tiers + Forge consumption cost projection); implement free <=10 users boundary in v1 code; submit.
+Accept: passes Atlassian review checklist; paywall boundary tested; pricing recorded in PRD §5.
+Depends on: T10, T11, T12, T13, T14"

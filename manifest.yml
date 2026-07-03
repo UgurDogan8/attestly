@@ -1,0 +1,156 @@
+modules:
+  macro:
+    - key: acknowledge-macro # Epic A — confirmation block (T6)
+      resource: ui/macro
+      resolver:
+        function: resolver
+      title: Read confirmation
+      config:
+        # Custom UI config modal (T7; spike M0-6)
+        resource: ui/config # Save writes to KVS via invoke —
+        viewportSize: large # page ADF stores NO assignment data
+        openOnInsert: true
+  confluence:contentBylineItem:
+    - key: acknowledge-byline # Epic A3 — per-user status (T8)
+      resource: ui/byline
+      title: Read confirmation
+      # NOTE(T8): schema rejects a `resolver` property here (unlike macro/pages).
+      # Verify the dialog's invoke() pathway when building the byline surface.
+  confluence:globalPage:
+    - key: acknowledge-dashboard # Epic C — admin dashboard (T9/T10)
+      resource: ui/dashboard
+      route: read-confirmations
+      title: Read confirmations
+      resolver:
+        function: resolver
+  confluence:globalSettings:
+    - key: acknowledge-settings # Epic G — app settings (T13)
+      resource: ui/settings
+      title: Read Confirmation
+      resolver:
+        function: resolver
+  # NO webtrigger modules — ever. A webtrigger alone breaks Runs on Atlassian
+  # eligibility (tech design §7). trigger/scheduledTrigger arrive in v1.1 as a
+  # minor version (§11.5) — do not declare them here.
+  function:
+    - key: resolver
+      handler: index.handler
+resources:
+  - key: ui # ONE multi-entry resource (spike M0-7)
+    path: static/app/build # built by `npm run build -w static/app`
+    entry:
+      # entries must be root-level FULL <html>
+      macro: macro.html # documents — deploy rejects fragments
+      byline: byline.html
+      dashboard: dashboard.html
+      settings: settings.html
+      config: config.html
+permissions:
+  scopes:
+    - storage:app # KVS custom entities
+    - read:page:confluence # page version + title (v2 API)
+    - read:user:confluence # display names at render time
+    - read:group:confluence # group membership resolution
+    - read:content.permission:confluence # other-user cannot-view checks
+  # No write:* scopes in v1. No external egress in any version (§7).
+app:
+  runtime:
+    name: nodejs22.x
+  id: ari:cloud:ecosystem::app/560c26ed-f8d8-4c20-8646-67d59784d534
+  storage:
+    entities:
+      - name: confirmation
+        attributes:
+          pageId:
+            type: string
+          spaceKey:
+            type: string
+          pageVersion:
+            type: integer
+          accountId:
+            type: string
+          confirmedAt:
+            type: string
+          assignmentType:
+            type: string
+          appVersion:
+            type: string
+          schemaVersion:
+            type: integer
+        indexes:
+          - name: by-page
+            partition:
+              - pageId
+            range:
+              - confirmedAt
+          - name: by-user
+            partition:
+              - accountId
+            range:
+              - confirmedAt
+          - name: by-page-user
+            partition:
+              - pageId
+              - accountId
+            range:
+              - pageVersion
+      - name: page-config
+        attributes:
+          pageId:
+            type: string
+          spaceKey:
+            type: string
+          active:
+            type: boolean
+          dueDate:
+            type: string
+          reconfirmOnChange:
+            type: boolean
+          createdBy:
+            type: string
+          createdAt:
+            type: string
+          updatedBy:
+            type: string
+          updatedAt:
+            type: string
+          schemaVersion:
+            type: integer
+          assignedUsers:
+            type: any
+          assignedGroups:
+            type: any
+          counters:
+            type: any
+        indexes:
+          - name: tracked
+            partition:
+              - active
+            range:
+              - spaceKey
+      - name: settings
+        attributes:
+          schemaVersion:
+            type: integer
+          complianceManagersGroupId:
+            type: string
+          reconfirmDefault:
+            type: boolean
+      - name: config-audit
+        attributes:
+          pageId:
+            type: string
+          at:
+            type: string
+          actor:
+            type: string
+          entry:
+            type: any
+          schemaVersion:
+            type: integer
+        indexes:
+          - name: by-page
+            partition:
+              - pageId
+            range:
+              - at
