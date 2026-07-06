@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <filter id="pageShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0F172A" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- App background (rounded squircle) -->
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#bg)"/>
+
+  <!-- Document with folded top-right corner -->
+  <g filter="url(#pageShadow)">
+    <rect x="136" y="110" width="220" height="280" rx="14" fill="#FFFFFF"/>
+    <!-- cut the corner to reveal background -->
+    <path d="M 320 110 L 356 110 L 356 146 Z" fill="url(#bg)"/>
+    <!-- folded flap -->
+    <path d="M 320 110 L 356 146 L 320 146 Z" fill="#CBD5E1"/>
+
+    <!-- text lines -->
+    <rect x="164" y="170" width="164" height="14" rx="7" fill="#94A3B8"/>
+    <rect x="164" y="206" width="164" height="14" rx="7" fill="#94A3B8"/>
+    <rect x="164" y="242" width="118" height="14" rx="7" fill="#94A3B8"/>
+  </g>
+
+  <!-- Confirmation badge -->
+  <circle cx="356" cy="390" r="72" fill="#22C55E" stroke="#1E1B4B" stroke-width="6"/>
+  <path d="M 322 392 L 344 414 L 392 362" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

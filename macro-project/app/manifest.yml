@@ -1,0 +1,69 @@
+modules:
+  confluence:contentBylineItem:
+    - key: read-confirm-hello-world-content-byline-item
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: Read Confirmation
+  confluence:globalPage:
+    - key: read-confirm-admin-panel
+      resource: admin
+      resolver:
+        function: resolver
+      render: native
+      title: Acknowledgement Dashboard
+      route: read-confirm-admin
+    - key: my-reads-page
+      resource: myReads
+      resolver:
+        function: resolver
+      render: native
+      title: My Reads
+      route: my-reads
+  webtrigger:
+    - key: csv-export-trigger
+      function: csvExportTrigger
+    - key: pdf-export-trigger
+      function: pdfExportTrigger
+  scheduledTrigger:
+    - key: reminder-scheduled-trigger
+      function: reminderTrigger
+      interval: day
+  trigger:
+    - key: page-updated-trigger
+      function: pageUpdatedTrigger
+      events:
+        - avi:confluence:updated:page
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: csvExportTrigger
+      handler: webTriggers.handleCsvExport
+    - key: pdfExportTrigger
+      handler: webTriggers.handlePdfExport
+    - key: reminderTrigger
+      handler: scheduledTriggers.run
+    - key: pageUpdatedTrigger
+      handler: pageUpdatedTrigger.run
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+  - key: admin
+    path: src/frontend/admin.jsx
+  - key: myReads
+    path: src/frontend/myReads.jsx
+app:
+  runtime:
+    name: nodejs24.x
+    memoryMB: 256
+    architecture: arm64
+  id: ari:cloud:ecosystem::app/4407810c-a553-405b-821d-2965b8bd4379
+permissions:
+  scopes:
+    - read:page:confluence
+    - storage:app
+    - write:comment:confluence
+    - read:confluence-content.summary
+    - read:content.metadata:confluence
+    - read:content.permission:confluence

@@ -1,0 +1,6 @@
+# AI ve Agent Dosyaları
+.agents/
+.claude/
+claude.md
+.gemini/
+settings.local.json

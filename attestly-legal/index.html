@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy &amp; Security Policy — Attestly</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 5rem;
+    line-height: 1.6;
+    color: #172B4D;
+    background: #FAFBFC;
+  }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.5rem; border-top: 1px solid #DFE1E6; padding-top: 1.5rem; }
+  .meta { color: #5E6C84; font-size: 0.9rem; margin-bottom: 2rem; }
+  .meta a { color: #0052CC; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #DFE1E6; vertical-align: top; }
+  th { background: #F4F5F7; }
+  code { background: #F4F5F7; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.9em; }
+  a { color: #0052CC; }
+  .badge {
+    display: inline-block; background: #E3FCEF; color: #006644;
+    padding: 0.15rem 0.6rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<span class="badge">Attestly for Confluence</span>
+<h1>Privacy &amp; Security Policy</h1>
+<p class="meta">
+  Last updated: July 2, 2026 · Published at
+  <a href="https://ugurdogan8.github.io/attestly-legal/">https://ugurdogan8.github.io/attestly-legal/</a>
+</p>
+
+<h2>1. Overview</h2>
+<p>
+  Attestly is an Atlassian Forge app for Confluence Cloud that lets teams confirm employees
+  have read and understood important pages (policies, SOPs, security guidelines) and produces
+  an audit trail for compliance purposes (e.g. ISO 27001, SOC 2, HIPAA readiness).
+</p>
+<p>
+  This app runs entirely on Atlassian's Forge platform. It does not operate its own servers,
+  does not send data to any third-party service, and does not use any external database. All
+  data the app creates stays inside your Atlassian cloud site's Forge storage, hosted by
+  Atlassian in the same data residency region as your Confluence site.
+</p>
+
+<h2>2. Data We Collect and Why</h2>
+<table>
+  <tr><th>Data</th><th>Collected when</th><th>Purpose</th></tr>
+  <tr>
+    <td>Confluence account ID of the acknowledging user</td>
+    <td>A user clicks "I have read and understood this" on a page</td>
+    <td>Identify who acknowledged a page, for the audit trail</td>
+  </tr>
+  <tr>
+    <td>Confluence page ID and page version number</td>
+    <td>Same as above</td>
+    <td>Detect when a page changes so a stale acknowledgement can be invalidated and re-requested</td>
+  </tr>
+  <tr>
+    <td>Timestamp of acknowledgement</td>
+    <td>Same as above</td>
+    <td>Audit trail — proves <em>when</em> a page was read</td>
+  </tr>
+  <tr>
+    <td>Confluence account IDs of assigned readers</td>
+    <td>An admin assigns readers to a page or campaign</td>
+    <td>Track who is expected to read a page and compute completion percentage</td>
+  </tr>
+  <tr>
+    <td>Due dates you set</td>
+    <td>An admin sets a due date for an assignment/campaign</td>
+    <td>Trigger reminder comments before/after the deadline</td>
+  </tr>
+  <tr>
+    <td>Campaign names</td>
+    <td>An admin creates a campaign</td>
+    <td>Group multiple page assignments under one label for reporting</td>
+  </tr>
+</table>
+<p>
+  We do <strong>not</strong> collect: page content/body text, email addresses, IP addresses
+  beyond what Atlassian's platform itself logs for security purposes, or any data from outside
+  the Confluence site the app is installed on.
+</p>
+
+<h2>3. How the App Uses Your Data</h2>
+<ul>
+  <li><strong>Acknowledgement records</strong> are used to render the "read and confirmed" status
+    on the page byline and in the admin panel, and to generate the CSV audit export.</li>
+  <li><strong>Reminder comments</strong>: the app posts a Confluence comment that @mentions users
+    who have a pending acknowledgement, which causes Confluence's own native email notification
+    system to notify them. The app does not send email itself and does not use any external
+    email/SMS provider.</li>
+  <li><strong>Re-acknowledgement notifications</strong>: when a tracked page is edited, the app
+    automatically comments and @mentions everyone whose prior acknowledgement is now out of
+    date.</li>
+</ul>
+
+<h2>4. Where Data Is Stored</h2>
+<p>
+  All application data (acknowledgement records, reader assignments, campaigns) is stored using
+  Forge's built-in Key-Value Storage, which is provisioned and encrypted by Atlassian as part of
+  the Forge platform, physically located in the same region as your Atlassian cloud site's data
+  residency setting. We (the app developer) have no separate database and no direct access to
+  this storage outside of the app's own backend code running inside Atlassian's Forge runtime.
+</p>
+
+<h2>5. Data Sharing</h2>
+<p>
+  We do not sell, rent, or share your data with any third party. The app makes no network calls
+  to any service other than Atlassian's own Confluence REST API (to read page details and post
+  comments), which runs entirely within Atlassian's infrastructure under the permissions listed
+  below.
+</p>
+
+<h2>6. Permissions (Scopes) Requested and Why</h2>
+<table>
+  <tr><th>Scope</th><th>Why the app needs it</th></tr>
+  <tr><td><code>read:page:confluence</code></td><td>Read a page's title and current version to detect edits and validate page IDs</td></tr>
+  <tr><td><code>storage:app</code></td><td>Store and retrieve acknowledgement, assignment, and campaign records</td></tr>
+  <tr><td><code>write:comment:confluence</code></td><td>Post reminder and re-acknowledgement comments that @mention pending readers</td></tr>
+  <tr><td><code>read:confluence-content.summary</code></td><td>Receive the page-updated event that triggers re-acknowledgement notifications</td></tr>
+</table>
+<p>
+  The app requests the minimum set of scopes needed for the features above; it does not request
+  access to Jira, admin/user-management APIs, or any data outside individual Confluence pages.
+</p>
+
+<h2>7. Audit Export Security</h2>
+<p>
+  The CSV audit export is served through a Forge web trigger (a unique, unguessable URL) that
+  additionally requires a secret token generated and validated by the app's backend — the
+  export link only works when requested from inside the admin panel by a user with access to
+  it. The token is never exposed in application code or logs; it is stored as an encrypted
+  Forge environment variable.
+</p>
+
+<h2>8. Data Retention and Deletion</h2>
+<p>
+  Data is retained for as long as the app remains installed on your site. If you uninstall the
+  app, Forge storage associated with the installation is deleted by Atlassian according to
+  Forge's standard data lifecycle policy. If you need data deleted sooner (e.g. for a specific
+  user under GDPR/right-to-erasure), contact us at
+  <a href="mailto:ugur.do808@gmail.com">ugur.do808@gmail.com</a> and we will remove the
+  relevant records via the app's storage APIs.
+</p>
+
+<h2>9. Children's Data</h2>
+<p>
+  This app is a workplace compliance tool intended for use by employees within an
+  organization's Confluence site. It is not directed at children and we do not knowingly
+  collect data from children.
+</p>
+
+<h2>10. Changes to This Policy</h2>
+<p>
+  We may update this policy as the app evolves. Material changes will be reflected here with an
+  updated "Last updated" date.
+</p>
+
+<h2>11. Contact</h2>
+<p>
+  Questions about this policy or your data:
+  <a href="mailto:ugur.do808@gmail.com">ugur.do808@gmail.com</a>
+</p>
+
+</body>
+</html>
