@@ -1,0 +1,11 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`manifest release guards TC-H1: scope snapshot — any PR touching permissions.scopes must consciously update this snapshot 1`] = `
+[
+  "storage:app",
+  "read:page:confluence",
+  "read:user:confluence",
+  "read:group:confluence",
+  "read:content.permission:confluence",
+]
+`;

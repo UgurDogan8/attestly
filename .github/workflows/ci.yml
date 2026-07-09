@@ -26,8 +26,12 @@ jobs:
       # lines, docs/07 §7) now enforced -- T2/T3/T4 pushed real coverage past
       # both thresholds. If a later task's stub work dips it, fix coverage in
       # the same PR rather than reverting to plain `npm test`.
+      #
+      # T14 release guards, enforced above via `npm run test:coverage`:
+      # - src/release/manifest.test.ts — scope snapshot (TC-H1) + single-
+      #   webtrigger assertion (TC-H2), replacing the reference's `forge
+      #   eligibility` RoA gate (docs/07 §6, dropped on purpose).
+      # See docs/09_deploy_procedure.md for the staging→production procedure
+      # and the (still manual, not yet a CI job) deploy commands.
       # TODO(T1, before first deploy): staging deploy on main merge (needs
-      # FORGE_EMAIL/FORGE_API_TOKEN secrets).
-      # TODO(T14): manifest scope-snapshot test; single-webtrigger guard
-      # (replaces the reference's `forge eligibility` RoA gate — this app
-      # knowingly ships one webtrigger, see manifest.yml and docs/07 §1/§6).
+      # FORGE_EMAIL/FORGE_API_TOKEN secrets — docs/09 §0.3).
