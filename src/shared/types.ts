@@ -217,3 +217,32 @@ export interface GetPageHistoryResponse {
   entries: HistoryEntryView[];
   nextCursor: string | null;
 }
+
+/**
+ * startExport (T11 — docs/07 §5, data model §4). CSV only in v1; `format` is
+ * carried through the job record now so T12 (PDF) can add a branch to the
+ * same pipeline without a payload-shape change.
+ */
+export type ExportFormat = 'csv';
+export type ExportScope = 'page' | 'space' | 'site';
+
+export interface StartExportPayload {
+  format: ExportFormat;
+  scope: ExportScope;
+  /** pageId when scope="page", spaceKey when scope="space"; omitted when scope="site". */
+  scopeValue?: string;
+  /** Same semantics as getDashboard's filter (docs/04 §3.4): narrows which
+   * PAGES are in scope, never which per-user rows within an included page —
+   * outstanding rows must survive the filter (PRD F1 "auditors need the
+   * negative space"). */
+  statusFilter?: StatusFilter;
+  /** ISO 8601 dates (inclusive). Filters which rows' confirmed_at_utc falls
+   * in range — never excludes outstanding/cannot-view rows, which have no
+   * confirmed_at_utc to filter on (data model §4). */
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface StartExportResponse {
+  url: string;
+}

@@ -83,6 +83,10 @@ export const tr: Record<MessageKey, string> = {
   'export.to': 'Bitiş',
   'export.start': 'Dışa aktar',
   'export.progress': 'Dışa aktarma hazırlanıyor — kayıtlar getiriliyor…',
+  'export.ready': 'Dışa aktarma hazır.',
+  'export.download': 'CSV indir',
+  'export.statusFilter': 'Durum',
+  'export.spaceKey': 'Alan anahtarı',
 
   'detail.back': 'Kontrol paneline dön',
   'detail.summary': '{assigned} atanandan {confirmed} onayladı · {outstanding} bekliyor · {cannotView} görüntüleyemiyor',

@@ -48,6 +48,11 @@ modules:
     # party). See docs/07 §1 and §5 for the full reasoning.
     - key: export-trigger
       function: exportTrigger
+      # TODO(T11, before first deploy, per environment): run
+      # `forge variables set --encrypt EXPORT_SECRET <random-value>` -- the
+      # webtrigger 403s without it (src/webtriggers/export.ts). Never commit
+      # the value; it's the shared secret the export URL's `k` query param is
+      # checked against (docs/07 §5).
   function:
     - key: resolver
       handler: index.handler
@@ -179,3 +184,25 @@ app:
               - pageId
             range:
               - at
+      - name: export-job
+        # T11 (docs/07 §5): transient, one-time, TTL ~5 min (storage/exportJobs.ts).
+        # Looked up by its key alone (exportjob#{token}) -- no index needed.
+        attributes:
+          token:
+            type: string
+          requestedBy:
+            type: string
+          format:
+            type: string
+          scope:
+            type: string
+          statusFilter:
+            type: string
+          dateFrom:
+            type: string
+          dateTo:
+            type: string
+          pages:
+            type: any
+          createdAt:
+            type: string

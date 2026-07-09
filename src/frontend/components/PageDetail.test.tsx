@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { Tabs, User } from '@forge/react';
+import { Button, Tabs, User } from '@forge/react';
 import { PageDetail } from './PageDetail';
 import type { GetPageDetailResponse, DetailUserRow } from '../../shared';
 
@@ -190,6 +190,19 @@ describe('PageDetail — tab content', () => {
     });
     const text = extractText(renderer.toJSON());
     expect(text).toContain('3');
+  });
+});
+
+describe('PageDetail — export (T11)', () => {
+  it('clicking Export opens the export dialog scoped to this one page', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: detailResponse({ pageId: 'page-1', title: 'Security Policy' }) });
+    const renderer = await mount();
+
+    expect(extractText(renderer.toJSON())).not.toContain('Export confirmations');
+    await act(async () => {
+      renderer.root.findByType(Button).props.onClick();
+    });
+    expect(extractText(renderer.toJSON())).toContain('Export confirmations');
   });
 });
 

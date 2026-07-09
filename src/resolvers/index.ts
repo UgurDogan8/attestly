@@ -19,6 +19,8 @@ import {
   type GetPageDetailResponse,
   type GetPageHistoryPayload,
   type GetPageHistoryResponse,
+  type StartExportPayload,
+  type StartExportResponse,
 } from '../shared';
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
@@ -35,6 +37,7 @@ import {
 } from './auth';
 import { getDashboardRows } from './dashboard';
 import { getPageDetail, getPageHistory } from './pageDetail';
+import { startExport } from './export';
 import { APP_VERSION } from '../version';
 
 /**
@@ -284,6 +287,15 @@ export function registerResolvers(resolver: Resolver): void {
     try {
       const accountId = requireAccountId(request);
       return await getPageHistory(request.payload, accountId);
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<StartExportPayload, Result<StartExportResponse>>('startExport', async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      return await startExport(request.payload, accountId);
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }

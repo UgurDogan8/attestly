@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { LinkButton, LoadingButton, Select, Textfield } from '@forge/react';
+import { Button, LinkButton, LoadingButton, Select, Textfield } from '@forge/react';
 import { Dashboard } from './Dashboard';
 import type { DashboardProps } from './Dashboard';
 import type { DashboardRow } from '../../shared';
@@ -160,6 +160,19 @@ describe('Dashboard — row click (T10: opens drill-down)', () => {
 
     renderer.root.findByType(LinkButton).props.onClick();
     expect(onOpenPage).toHaveBeenCalledWith('page-9');
+  });
+});
+
+describe('Dashboard — export (T11)', () => {
+  it('clicking Export opens the export dialog, and it starts closed', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [row()], nextCursor: null } });
+    const renderer = await mount();
+
+    expect(extractText(renderer.toJSON())).not.toContain('Export confirmations');
+    await act(async () => {
+      renderer.root.findByType(Button).props.onClick();
+    });
+    expect(extractText(renderer.toJSON())).toContain('Export confirmations');
   });
 });
 

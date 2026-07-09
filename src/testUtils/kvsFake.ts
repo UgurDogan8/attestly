@@ -155,8 +155,13 @@ class FakeEntity<T> {
     return this.kvsInstance.rawGet<T>(this.entityName, key);
   }
 
-  async set(key: string, value: T): Promise<void> {
+  /** `options` (e.g. `{ ttl }`) is accepted but not simulated — tests don't depend on real expiry. */
+  async set(key: string, value: T, _options?: unknown): Promise<void> {
     this.kvsInstance.rawSet(this.entityName, key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.kvsInstance.rawDelete(this.entityName, key);
   }
 
   query(): { index: (indexName: string, options?: { partition?: unknown[] }) => FakeEntityQueryBuilder<T> } {
@@ -217,6 +222,10 @@ export class InMemoryKvs {
 
   rawSet<T>(entityName: string, key: string, value: T): void {
     this.storeFor(entityName).set(key, value);
+  }
+
+  rawDelete(entityName: string, key: string): void {
+    this.storeFor(entityName).delete(key);
   }
 
   rawAll<T>(entityName: string): StoredItem<T>[] {

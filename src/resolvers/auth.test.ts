@@ -38,6 +38,7 @@ import {
   resolveGroupNames,
   checkViewPermission,
   getGroupMemberAccountIds,
+  resolveUserDisplayName,
 } from './auth';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -358,5 +359,56 @@ describe('getGroupMemberAccountIds (T10 — reverse of getCurrentUserGroupIds, s
       throw new Error('network blip');
     });
     expect(await getGroupMemberAccountIds('g1')).toEqual([]);
+  });
+
+  it('defaults to the asUser tier (T10 call sites, unchanged)', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { results: [] }));
+    await getGroupMemberAccountIds('g1');
+    expect(fakeApi.lastTier).toBe('user');
+  });
+
+  it('T11: passing tier "app" calls asApp (webtriggers have no user session)', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { results: [{ accountId: 'acc-1' }] }));
+    const result = await getGroupMemberAccountIds('g1', 'app');
+    expect(fakeApi.lastTier).toBe('app');
+    expect(result).toEqual(['acc-1']);
+  });
+});
+
+describe('resolveUserDisplayName (T11 — data model §4 user_display_name column)', () => {
+  it('returns the resolved display name', async () => {
+    fakeApi.setHandler((url) => {
+      expect(url).toBe('/wiki/rest/api/user?accountId=acc-1');
+      return jsonResponse(200, { displayName: 'Ayşe Yılmaz' });
+    });
+    expect(await resolveUserDisplayName('acc-1', 'user')).toBe('Ayşe Yılmaz');
+  });
+
+  it('maps a null displayName to "[deactivated]"', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { displayName: null }));
+    expect(await resolveUserDisplayName('acc-1', 'user')).toBe('[deactivated]');
+  });
+
+  it('maps HTTP 404 to "[deleted user]"', async () => {
+    fakeApi.setHandler(() => jsonResponse(404, {}));
+    expect(await resolveUserDisplayName('acc-1', 'user')).toBe('[deleted user]');
+  });
+
+  it('fails safe to "[deleted user]" on any other error status', async () => {
+    fakeApi.setHandler(() => jsonResponse(500, {}));
+    expect(await resolveUserDisplayName('acc-1', 'user')).toBe('[deleted user]');
+  });
+
+  it('fails safe to "[deleted user]" when the request throws', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('network blip');
+    });
+    expect(await resolveUserDisplayName('acc-1', 'user')).toBe('[deleted user]');
+  });
+
+  it('T11: passing tier "app" calls asApp', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { displayName: 'X' }));
+    await resolveUserDisplayName('acc-1', 'app');
+    expect(fakeApi.lastTier).toBe('app');
   });
 });

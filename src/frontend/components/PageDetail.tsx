@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
+  Button,
   DynamicTable,
   Heading,
   Inline,
@@ -20,6 +21,7 @@ import { useI18n } from './useI18n';
 import type { I18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { formatLocalDateTime } from './formatLocalDateTime';
+import { ExportDialog } from './ExportDialog';
 import type {
   GetPageDetailPayload,
   GetPageDetailResponse,
@@ -135,6 +137,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
   const [historyEntries, setHistoryEntries] = useState<HistoryEntryView[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,7 +199,10 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
       <LinkButton appearance="link" onClick={onBack}>
         {t('detail.back')}
       </LinkButton>
-      <Heading size="medium">{title}</Heading>
+      <Inline space="space.200" alignBlock="center" spread="space-between">
+        <Heading size="medium">{title}</Heading>
+        <Button onClick={() => setExportOpen(true)}>{t('dashboard.export')}</Button>
+      </Inline>
       <Text>
         {t('detail.summary', {
           assigned: data.summary.assigned,
@@ -271,6 +277,10 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
           )}
         </TabPanel>
       </Tabs>
+
+      {exportOpen ? (
+        <ExportDialog onClose={() => setExportOpen(false)} fixedPageScope={{ pageId: data.pageId, pageTitle: data.title }} />
+      ) : null}
     </Stack>
   );
 }

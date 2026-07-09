@@ -12,6 +12,7 @@ export const ENTITY = {
   pageConfig: 'page-config', // lowercase manifest names (platform constraint)
   settings: 'settings',
   configAudit: 'config-audit',
+  exportJob: 'export-job',
 } as const;
 
 /** Deterministic → idempotent (tech design §6.1). Keys hold identity only. */
@@ -24,3 +25,6 @@ export const SETTINGS_KEY = 'settings#global';
 
 export const configAuditKey = (pageId: string, atIso: string, nonce: string): string =>
   `cfgaudit#${pageId}#${atIso}#${nonce}`;
+
+/** High-entropy random token (T11) — the key itself is the capability, so it must not be guessable. */
+export const exportJobKey = (token: string): string => `exportjob#${token}`;

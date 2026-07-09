@@ -224,6 +224,21 @@ interface MembersByGroupIdResponse {
 }
 
 /**
+ * Which tier calls a helper below: `'user'` for resolver contexts
+ * (asUser() — server-authoritative, current user), `'app'` for webtrigger
+ * contexts (T11 export — asUser() fails outside UI-invoked calls, tech
+ * design §4). Group membership and user-display-name lookups aren't
+ * viewer-permission-sensitive the way page content is (both endpoints only
+ * require basic product access, which the app's own scopes already grant),
+ * so the same call works under either tier — this selects which one.
+ */
+export type ApiTier = 'user' | 'app';
+
+function apiFor(tier: ApiTier) {
+  return tier === 'app' ? api.asApp() : api.asUser();
+}
+
+/**
  * `GET /wiki/rest/api/group/{groupId}/membersByGroupId` (T10 — verified
  * against Atlassian's published Confluence Cloud REST API docs this task;
  * same `read:group:confluence` + `read:user:confluence` scopes already
@@ -235,9 +250,10 @@ interface MembersByGroupIdResponse {
  * Best-effort: a group that fails to resolve (e.g. deleted) simply
  * contributes zero members rather than failing the whole drill-down — see
  * data model's degraded-states table ("group deleted -> members no longer
- * counted").
+ * counted"). `tier` defaults to `'user'` (T10's own call sites, unchanged);
+ * T11's export webtrigger passes `'app'` since it has no user session.
  */
-export async function getGroupMemberAccountIds(groupId: string): Promise<string[]> {
+export async function getGroupMemberAccountIds(groupId: string, tier: ApiTier = 'user'): Promise<string[]> {
   const accountIds: string[] = [];
   const limit = 200;
   let start = 0;
@@ -245,11 +261,10 @@ export async function getGroupMemberAccountIds(groupId: string): Promise<string[
   for (;;) {
     let response;
     try {
-      response = await api
-        .asUser()
-        .requestConfluence(route`/wiki/rest/api/group/${groupId}/membersByGroupId?start=${start}&limit=${limit}`, {
-          headers: { Accept: 'application/json' },
-        });
+      response = await apiFor(tier).requestConfluence(
+        route`/wiki/rest/api/group/${groupId}/membersByGroupId?start=${start}&limit=${limit}`,
+        { headers: { Accept: 'application/json' } },
+      );
     } catch {
       break;
     }
@@ -304,4 +319,40 @@ export async function resolveGroupNames(groupIds: string[]): Promise<GroupOption
     }),
   );
   return resolved.filter((group): group is GroupOption => group !== null);
+}
+
+interface UserResponse {
+  displayName?: string | null;
+}
+
+/**
+ * `GET /wiki/rest/api/user?accountId=...` (T11 export — data model §4's
+ * `user_display_name` column). UNVERIFIED AGAINST A LIVE SITE (this file's
+ * standing convention, tech design §11): the endpoint and `displayName`
+ * field are confirmed against Atlassian's docs, but the exact signal for
+ * "deactivated" (as opposed to fully erased) isn't confirmed — Atlassian's
+ * docs note `displayName` can come back `null` for privacy reasons, which is
+ * the closest available signal, so it's treated as deactivated here. A 404
+ * (unknown/erased accountId, same pattern as checkViewPermission's tier-3
+ * probe) and any other failure both collapse to `[deleted user]` — the
+ * safer of the two labels data model §4 defines, never a crash or a blank
+ * cell. Runs under whichever tier the caller is in (T11's webtrigger has no
+ * user session, so it passes `'app'`).
+ */
+export async function resolveUserDisplayName(accountId: string, tier: ApiTier): Promise<string> {
+  try {
+    const response = await apiFor(tier).requestConfluence(route`/wiki/rest/api/user?accountId=${accountId}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status === 404) {
+      return '[deleted user]';
+    }
+    if (!response.ok) {
+      return '[deleted user]';
+    }
+    const body = (await response.json()) as UserResponse;
+    return body.displayName ?? '[deactivated]';
+  } catch {
+    return '[deleted user]';
+  }
 }

@@ -40,6 +40,9 @@ const notConfigured: FakeRequestHandler = (url) => {
 
 export class FakeForgeApi {
   private handler: FakeRequestHandler = notConfigured;
+  /** Tracks which tier issued the most recent request -- lets tests assert
+   * a helper called asApp() vs asUser() without the handler itself caring. */
+  lastTier: 'user' | 'app' | undefined;
 
   setHandler(handler: FakeRequestHandler): void {
     this.handler = handler;
@@ -51,12 +54,28 @@ export class FakeForgeApi {
   }
 
   asUser(): { requestConfluence: FakeForgeApi['request'] } {
+    this.lastTier = 'user';
     return { requestConfluence: (url, init) => this.request(url, init) };
   }
 
   asApp(): { requestConfluence: FakeForgeApi['request'] } {
+    this.lastTier = 'app';
     return { requestConfluence: (url, init) => this.request(url, init) };
   }
+}
+
+/**
+ * Minimal fake of @forge/api's named `webTrigger` export (T11 —
+ * src/resolvers/export.ts calls `webTrigger.getUrl('export-trigger')`).
+ * Real behavior is a single async lookup; tests set `urlByModuleKey` or just
+ * rely on the default `https://example.test/x/{moduleKey}` pattern.
+ */
+export class FakeWebTrigger {
+  urlByModuleKey: Record<string, string> = {};
+
+  getUrl = jest.fn(async (moduleKey: string): Promise<string> => {
+    return this.urlByModuleKey[moduleKey] ?? `https://example.test/x/${moduleKey}`;
+  });
 }
 
 export function fakeRoute(strings: TemplateStringsArray, ...values: unknown[]): { value: string } {

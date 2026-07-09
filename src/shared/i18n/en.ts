@@ -85,6 +85,10 @@ export const en = {
   'export.to': 'To',
   'export.start': 'Export',
   'export.progress': 'Preparing export — fetching records…',
+  'export.ready': 'Your export is ready.',
+  'export.download': 'Download CSV',
+  'export.statusFilter': 'Status',
+  'export.spaceKey': 'Space key',
 
   'detail.back': 'Back to dashboard',
   'detail.summary': '{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',
