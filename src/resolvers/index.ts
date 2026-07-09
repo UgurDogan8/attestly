@@ -13,6 +13,8 @@ import {
   type ConfigResponse,
   type SearchGroupsPayload,
   type GroupOption,
+  type GetDashboardPayload,
+  type GetDashboardResponse,
 } from '../shared';
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
@@ -27,6 +29,7 @@ import {
   searchGroupsByQuery,
   resolveGroupNames,
 } from './auth';
+import { getDashboardRows } from './dashboard';
 import { APP_VERSION } from '../version';
 
 /**
@@ -249,6 +252,15 @@ export function registerResolvers(resolver: Resolver): void {
       }
 
       return ok(await searchGroupsByQuery(query));
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<GetDashboardPayload, Result<GetDashboardResponse>>('getDashboard', async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      return await getDashboardRows(request.payload, accountId);
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }

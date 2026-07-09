@@ -58,7 +58,17 @@ export function bumpConfirmedCounter(config: PageConfigRecord): PageConfigRecord
   };
 }
 
-function queryTracked(
+/**
+ * One KVS page of tracked (active) configs, optionally filtered to one
+ * space. Exported (not just wrapped by drainTrackedPages below) because
+ * T9's getDashboard resolver needs to fetch exactly one page per
+ * invocation using a cursor the *client* hands back on "Load more" —
+ * a generator can't resume across separate serverless invocations, it
+ * only helps within a single one (data model §5, tech design §9: cursor
+ * pagination is a resolver-to-client contract here, not just an
+ * in-process convenience).
+ */
+export function queryTrackedPage(
   spaceKey: string | undefined,
   cursor: string | undefined,
 ): Promise<CursorPage<PageConfigRecord>> {
@@ -81,9 +91,10 @@ function queryTracked(
 
 /**
  * Cursor-paged read of tracked (active) pages, optionally filtered to one
- * space (dashboard list, tech design §5/§9 — never fans out across
- * `confirmation` records).
+ * space (never fans out across `confirmation` records). For in-process
+ * draining only (e.g. tests, full-site export) — resolvers that hand a
+ * cursor back to the client must use queryTrackedPage directly instead.
  */
 export function drainTrackedPages(spaceKey?: string): AsyncGenerator<PageConfigRecord[]> {
-  return drainPages((cursor) => queryTracked(spaceKey, cursor));
+  return drainPages((cursor) => queryTrackedPage(spaceKey, cursor));
 }

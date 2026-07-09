@@ -87,3 +87,33 @@ export function computePercentComplete(users: UserAssignmentStatus[]): PercentCo
     eligibleCount: eligible.length,
   };
 }
+
+/**
+ * Dashboard-list variant of "% complete" (tech design §5, §9): computed from
+ * the page-config's advisory aggregate counts, never by fanning out over
+ * per-user status or `confirmation` records (that's drill-down/export's job,
+ * T10/T11, which recompute exact truth and self-heal the counter).
+ *
+ * `confirmedCount` here is the raw `counters.confirmedCurrentVersion`
+ * (data model §2.2), which — unlike computePercentComplete's per-user
+ * input — does not distinguish assigned from voluntary confirmations at
+ * write time (storage/confirmations.ts bumps it on every confirm). Without
+ * clamping, a page with many voluntary confirmers could show over 100%,
+ * which would read as a bug rather than a feature on a list of many rows a
+ * manager scans quickly. Clamped to [0, assignedCount] so the advisory
+ * number always looks sane; the exact per-user breakdown is one click away.
+ */
+export function computeAdvisoryPercent(assignedCount: number, confirmedCount: number): PercentComplete {
+  if (assignedCount <= 0) {
+    return { kind: 'none' };
+  }
+
+  const clamped = Math.max(0, Math.min(confirmedCount, assignedCount));
+
+  return {
+    kind: 'value',
+    percent: clamped / assignedCount,
+    confirmedCount: clamped,
+    eligibleCount: assignedCount,
+  };
+}

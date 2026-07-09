@@ -1,4 +1,10 @@
-import { computeStatus, computePercentComplete, type StatusInput, type UserAssignmentStatus } from './status';
+import {
+  computeStatus,
+  computePercentComplete,
+  computeAdvisoryPercent,
+  type StatusInput,
+  type UserAssignmentStatus,
+} from './status';
 
 function input(overrides: Partial<StatusInput> = {}): StatusInput {
   return {
@@ -108,5 +114,29 @@ describe('computePercentComplete (data model §3 — "% complete")', () => {
   it('all confirmed -> 100%', () => {
     const result = computePercentComplete([assigned('confirmed'), assigned('confirmed')]);
     expect(result).toEqual({ kind: 'value', percent: 1, confirmedCount: 2, eligibleCount: 2 });
+  });
+});
+
+describe('computeAdvisoryPercent (T9 dashboard list — from aggregate counts, no fan-out)', () => {
+  it('0 assigned -> none, not 0%', () => {
+    expect(computeAdvisoryPercent(0, 0)).toEqual({ kind: 'none' });
+  });
+
+  it('a normal in-range case', () => {
+    expect(computeAdvisoryPercent(4, 2)).toEqual({ kind: 'value', percent: 0.5, confirmedCount: 2, eligibleCount: 4 });
+  });
+
+  it('clamps a confirmedCount inflated by voluntary confirmations to 100%, not >100%', () => {
+    // e.g. 4 assigned, but the raw counter shows 7 (voluntary confirmers
+    // bumped it too) -- must never display as 175%.
+    expect(computeAdvisoryPercent(4, 7)).toEqual({ kind: 'value', percent: 1, confirmedCount: 4, eligibleCount: 4 });
+  });
+
+  it('clamps a negative confirmedCount (defensive) to 0%', () => {
+    expect(computeAdvisoryPercent(4, -1)).toEqual({ kind: 'value', percent: 0, confirmedCount: 0, eligibleCount: 4 });
+  });
+
+  it('all confirmed -> exactly 100%', () => {
+    expect(computeAdvisoryPercent(3, 3)).toEqual({ kind: 'value', percent: 1, confirmedCount: 3, eligibleCount: 3 });
   });
 });

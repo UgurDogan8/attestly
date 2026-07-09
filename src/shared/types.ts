@@ -102,3 +102,44 @@ export interface GroupOption {
   id: string;
   name: string;
 }
+
+/**
+ * getDashboard (T9 dashboard global page — tech design §4/§5/§9). Role
+ * gate: compliance-managers group only in v1 (§7 Riskler-style disclosed
+ * scope tradeoff — see src/resolvers/dashboard.ts's docstring: "OR
+ * Confluence admin" needs a scope this app doesn't have yet and an
+ * unverified operations/targetType check, deferred rather than guessed at).
+ */
+export type StatusFilter = 'all' | 'incomplete' | 'complete' | 'overdue';
+
+export interface GetDashboardPayload {
+  cursor?: string;
+  spaceKey?: string;
+  statusFilter?: StatusFilter;
+}
+
+/** Same shape as domain/status.ts's PercentComplete, re-declared here (not
+ * imported) to keep the invoke contract independent of the domain layer's
+ * internal types. */
+export type PercentSummary =
+  | { kind: 'none' }
+  | { kind: 'value'; percent: number; confirmedCount: number; eligibleCount: number };
+
+export interface DashboardRow {
+  pageId: string;
+  /** null when `deleted` — data model §6.4: never leak a restricted/deleted page's title. */
+  title: string | null;
+  deleted: boolean;
+  spaceKey: string;
+  /** Direct assigned users only (see dashboard.ts docstring — a disclosed
+   * simplification; group-resolved counts are exact only in drill-down, T10). */
+  assignedCount: number;
+  percent: PercentSummary;
+  dueDate: string | null;
+  overdue: boolean;
+}
+
+export interface GetDashboardResponse {
+  rows: DashboardRow[];
+  nextCursor: string | null;
+}
