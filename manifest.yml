@@ -16,7 +16,12 @@ modules:
       render: native
       resolver:
         function: resolver
-      title: Read confirmation
+      title: Read confirmation # static fallback; dynamicProperties below overrides per viewer
+      dynamicProperties:
+        function: bylineProps # chip title/tooltip (src/resolvers/bylineProps.ts) —
+        # platform re-invokes this automatically after the dialog closes,
+        # which is how the chip refreshes (docs/06 T8 accept criteria) —
+        # no push-update code needed.
   confluence:globalPage:
     - key: acknowledge-dashboard # Epic C — admin dashboard (T9/T10)
       resource: dashboard
@@ -48,6 +53,8 @@ modules:
       handler: index.handler
     - key: exportTrigger
       handler: webtriggers/export.handler
+    - key: bylineProps
+      handler: resolvers/bylineProps.handler
 resources:
   - key: macro
     path: src/frontend/macro.tsx
