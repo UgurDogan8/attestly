@@ -96,7 +96,7 @@ describe('getPageStatus', () => {
 
     expect(result).toEqual({
       ok: true,
-      data: { status: 'outstanding', pageVersion: 3, dueDate: null, isAssigned: false },
+      data: { status: 'outstanding', pageVersion: 3, dueDate: null, isAssigned: false, confirmedAt: null },
     });
   });
 
@@ -108,7 +108,7 @@ describe('getPageStatus', () => {
 
     expect(result).toEqual({
       ok: true,
-      data: { status: 'outstanding', pageVersion: 1, dueDate: '2026-08-15', isAssigned: true },
+      data: { status: 'outstanding', pageVersion: 1, dueDate: '2026-08-15', isAssigned: true, confirmedAt: null },
     });
   });
 
@@ -125,10 +125,15 @@ describe('getPageStatus', () => {
 
   it('status confirmed after a prior confirmation at the current version', async () => {
     fakeApi.setHandler(pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 5, spaceId: '111' }));
-    await invoke<ConfirmPayload, ConfirmResponse>('confirm', { pageId: 'page-1', pageVersion: 5 });
+    const confirmResult = await invoke<ConfirmPayload, ConfirmResponse>('confirm', { pageId: 'page-1', pageVersion: 5 });
 
     const result = await invoke<PageStatusPayload, PageStatusResponse>('getPageStatus', { pageId: 'page-1' });
-    expect((result as { ok: true; data: PageStatusResponse }).data.status).toBe('confirmed');
+    const data = (result as { ok: true; data: PageStatusResponse }).data;
+    expect(data.status).toBe('confirmed');
+    // confirmedAt must survive a page reload (getPageStatus), not just the
+    // fresh confirm response — R3 needs it on every render, not once.
+    const confirmData = (confirmResult as { ok: true; data: ConfirmResponse & { outcome: 'confirmed' } }).data;
+    expect(data.confirmedAt).toBe(confirmData.confirmedAt);
   });
 
   it('returns a typed error when the page cannot be read', async () => {

@@ -1,5 +1,6 @@
 // @ts-check
 const tseslint = require('typescript-eslint');
+const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = tseslint.config(
   {
@@ -10,6 +11,18 @@ module.exports = tseslint.config(
     files: ['src/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    // Only the two well-established rules, not the plugin's full v7
+    // "recommended-latest" set (which leans heavily on React Compiler-era
+    // assumptions like react-hooks/purity, set-state-in-render, etc. that
+    // this codebase isn't built around and would be noisy to adopt wholesale).
+    files: ['src/frontend/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {

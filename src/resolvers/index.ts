@@ -75,6 +75,7 @@ export function registerResolvers(resolver: Resolver): void {
         pageVersion: pageRead.page.version,
         dueDate: config?.dueDate ?? null,
         isAssigned: await resolveIsAssigned(config, accountId),
+        confirmedAt: latest?.confirmedAt ?? null,
       });
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');

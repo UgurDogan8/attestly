@@ -28,6 +28,7 @@ export const en = {
   'macro.midread.title': 'This page was just updated',
   'macro.midread.body': 'Please review the latest version before confirming.',
   'macro.midread.reload': 'Reload page',
+  'macro.unsupportedContentType': 'Read confirmation only supports Confluence pages.',
 
   'byline.required': 'Confirmation required',
   'byline.confirmed': 'Confirmed {date}',

@@ -26,6 +26,7 @@ export const tr: Record<MessageKey, string> = {
   'macro.midread.title': 'Bu sayfa az önce güncellendi',
   'macro.midread.body': 'Onaylamadan önce lütfen en son sürümü inceleyin.',
   'macro.midread.reload': 'Sayfayı yenile',
+  'macro.unsupportedContentType': 'Okuma onayı yalnızca Confluence sayfalarını destekler.',
 
   'byline.required': 'Onay gerekli',
   'byline.confirmed': '{date} tarihinde onaylandı',

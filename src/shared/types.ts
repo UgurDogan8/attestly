@@ -34,6 +34,10 @@ export interface PageStatusResponse {
   pageVersion: number;
   dueDate: string | null;
   isAssigned: boolean;
+  /** UTC ISO timestamp of the latest confirmation, if any (R3: "You
+   * confirmed version {v} on {datetime}" needs this on page load, not just
+   * right after a fresh confirm click). Null when status is outstanding/expired. */
+  confirmedAt: string | null;
 }
 
 /** confirm (macro — tech design §4/§6.1/§6.3). */
