@@ -32,6 +32,7 @@ import {
   hasEditPermission,
   getCurrentUserGroupIds,
   isMemberOfAnyGroup,
+  isConfluenceAdmin,
   isComplianceManager,
   canConfigure,
   searchGroupsByQuery,
@@ -176,23 +177,67 @@ describe('isMemberOfAnyGroup', () => {
   });
 });
 
-describe('isComplianceManager (data model §2.3)', () => {
-  it('false without making a request when no managers group is configured', async () => {
-    fakeApi.setHandler(() => {
-      throw new Error('should not be called');
+describe('isConfluenceAdmin (T13 — resolves T9\'s disclosed admin-check deferral)', () => {
+  it('true when operations includes {operation: "administer", targetType: "application"}', async () => {
+    fakeApi.setHandler((url) => {
+      expect(url).toBe('/wiki/rest/api/user/current?expand=operations');
+      return jsonResponse(200, { operations: [{ operation: 'read', targetType: 'space' }, { operation: 'administer', targetType: 'application' }] });
     });
+    expect(await isConfluenceAdmin()).toBe(true);
+  });
+
+  it('false when administer is present but only for a narrower targetType (e.g. space admin, not site admin)', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'space' }] }));
+    expect(await isConfluenceAdmin()).toBe(false);
+  });
+
+  it('false when operations is missing entirely', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, {}));
+    expect(await isConfluenceAdmin()).toBe(false);
+  });
+
+  it('fails closed (false) on a non-200 response', async () => {
+    fakeApi.setHandler(() => jsonResponse(403, {}));
+    expect(await isConfluenceAdmin()).toBe(false);
+  });
+
+  it('fails closed (false) when the request throws', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('network blip');
+    });
+    expect(await isConfluenceAdmin()).toBe(false);
+  });
+});
+
+describe('isComplianceManager (data model §2.3 — admin OR compliance-managers group, T13)', () => {
+  it('false when neither admin nor a managers group membership holds', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
     expect(await isComplianceManager('acc-1')).toBe(false);
   });
 
-  it('true when the user is a member of the configured managers group', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
-    fakeApi.setHandler(() => jsonResponse(200, { results: [{ id: 'managers-group' }] }));
+  it('true when the user is a Confluence admin, even with no managers group configured at all', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
+      throw new Error('should not need the managers group membership call when already admin');
+    });
     expect(await isComplianceManager('acc-1')).toBe(true);
   });
 
-  it('false when the user is not a member of the configured managers group', async () => {
+  it('true when the user is a member of the configured managers group (not an admin)', async () => {
     await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
-    fakeApi.setHandler(() => jsonResponse(200, { results: [{ id: 'other-group' }] }));
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [] });
+      return jsonResponse(200, { results: [{ id: 'managers-group' }] });
+    });
+    expect(await isComplianceManager('acc-1')).toBe(true);
+  });
+
+  it('false when the user is neither an admin nor a member of the configured managers group', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [] });
+      return jsonResponse(200, { results: [{ id: 'other-group' }] });
+    });
     expect(await isComplianceManager('acc-1')).toBe(false);
   });
 });

@@ -7,21 +7,12 @@ import { ok, err, type Result, type GetDashboardPayload, type GetDashboardRespon
 /**
  * Dashboard row assembly (docs/06 T9, UX doc §3.2, tech design §4/§5/§9).
  *
- * Role gate — disclosed scope tradeoff: T9's own accept criteria says
- * "admin or compliance-managers group". This app only implements the
- * compliance-managers half. Checking "is this user a Confluence site
- * admin" needs `GET /wiki/rest/api/user/current?expand=operations` (an
- * `{operation: "administer", targetType}` entry) — researched this task,
- * but it requires a scope this app doesn't have (`read:confluence-user` or
- * granular `read:content-details:confluence`), and the exact targetType
- * value that means *site-wide* (not space-level) admin isn't confirmed
- * from documentation alone. Adding a scope is a major-version, consciously
- * disclosed decision (tech design §7) — not something to slip in while
- * chasing an unverified detail. Compliance-manager-only is *more*
- * restrictive than the target design, never less: a site admin who isn't
- * also in the compliance-managers group is blocked, not let through
- * wrongly. Follow-up: add the admin check once the targetType is verified
- * live and the scope addition is a deliberate step (T13 settings or later).
+ * Role gate: "admin or compliance-managers group" (T9's own accept
+ * criteria), implemented in full as of T13 — isComplianceManager (auth.ts)
+ * now checks isConfluenceAdmin() first. That admin check's own residual
+ * (the `targetType: "application"` signal is community-documented, not
+ * Atlassian's own published reference) is disclosed and fails closed in
+ * auth.ts's docstring, not repeated here.
  *
  * Visibility rule (tech design §4, normative): resolvePageVisibility does
  * ONE bulk asUser() read (`GET /wiki/api/v2/pages?id=a,b,c`, confirmed via

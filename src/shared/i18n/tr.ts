@@ -128,4 +128,7 @@ export const tr: Record<MessageKey, string> = {
   'settings.lifecycle.title': 'Veri yaşam döngüsü',
   'settings.lifecycle.body':
     'Uygulama kaldırıldığında verileri 28 günlük saklama süresinin ardından silinir. Kaldırmadan önce dışa aktarın. Yeniden kurulum boş başlar; 21 gün içinde kurtarma için Atlassian destek talebi gerekir.',
+  'settings.noAccess.header': 'Confluence yönetici erişimi gerekiyor',
+  'settings.noAccess.description': 'Bu ayarları yalnızca Confluence site yöneticileri görüntüleyebilir veya değiştirebilir.',
+  'settings.saved': 'Ayarlar kaydedildi.',
 };

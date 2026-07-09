@@ -388,4 +388,65 @@ describe('searchGroups (T7 config modal group field)', () => {
     const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
     expect(result).toEqual({ ok: true, data: [] });
   });
+
+  it('T13: without a pageId, gates on isConfluenceAdmin instead of canConfigure', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [], results: [] }));
+    const payload: SearchGroupsPayload = { query: 'sec' };
+    const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('T13: an admin without a pageId is authorized to search groups', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
+      if (url.includes('/group/picker')) return jsonResponse(200, { results: [{ id: 'g1', name: 'sec-all' }] });
+      return jsonResponse(404, {});
+    });
+    const payload: SearchGroupsPayload = { query: 'sec' };
+    const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
+    expect(result).toEqual({ ok: true, data: [{ id: 'g1', name: 'sec-all' }] });
+  });
+});
+
+describe('getSettings / saveSettings (T13 — admin-only, data model §2.3)', () => {
+  it('getSettings is forbidden for a non-admin', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
+    const result = await invoke('getSettings', {});
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('getSettings returns defaults before anything has been saved, for an admin', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] }));
+    const result = await invoke('getSettings', {});
+    expect(result).toEqual({
+      ok: true,
+      data: { complianceManagersGroupId: null, complianceManagersGroupName: null, reconfirmDefault: false },
+    });
+  });
+
+  it('saveSettings is forbidden for a non-admin', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
+    const result = await invoke('saveSettings', { complianceManagersGroupId: 'g1', reconfirmDefault: false });
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('an admin can save settings, and a subsequent getSettings reflects them (with the group name resolved)', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
+      if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'g1', name: 'compliance-team' });
+      return jsonResponse(404, {});
+    });
+
+    const saveResult = await invoke('saveSettings', { complianceManagersGroupId: 'g1', reconfirmDefault: true });
+    expect(saveResult).toEqual({
+      ok: true,
+      data: { complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team', reconfirmDefault: true },
+    });
+
+    const getResult = await invoke('getSettings', {});
+    expect(getResult).toEqual({
+      ok: true,
+      data: { complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team', reconfirmDefault: true },
+    });
+  });
 });

@@ -133,14 +133,70 @@ export async function isMemberOfAnyGroup(accountId: string, groupIds: string[]):
   return groupIds.some((id) => memberOf.has(id));
 }
 
-/** data model §2.3: members of `settings.complianceManagersGroupId` reach the dashboard without being Confluence admins. */
-export async function isComplianceManager(accountId: string): Promise<boolean> {
-  const settings = await getSettings();
-  if (!settings.complianceManagersGroupId) {
+interface UserOperation {
+  operation?: string;
+  targetType?: string;
+}
+
+interface CurrentUserResponse {
+  operations?: UserOperation[];
+}
+
+/**
+ * `GET /wiki/rest/api/user/current?expand=operations` (T13 — resolves the
+ * admin-check residual T9's dashboard.ts docstring deferred). Scope
+ * confirmed this task: `read:user:confluence` (granular) covers
+ * `/wiki/rest/api/user/current` — already declared, no manifest change
+ * needed; T9's guess that a *different*, undeclared scope was required was
+ * wrong.
+ *
+ * What remains genuinely UNVERIFIED AGAINST A LIVE SITE (this file's
+ * standing convention): the signal for *site-wide* admin is an
+ * `{operation: "administer", targetType: "application"}` entry in the
+ * `operations` array. `targetType: "application"` is community-documented
+ * (Atlassian Developer Community), not in Atlassian's own published API
+ * reference — it's the best available signal, not a confirmed one. Fails
+ * CLOSED (not admin) on any unexpected response shape, missing field, or
+ * error — an unverified "yes" is never trusted, only a verified "no" ever
+ * denies falsely. Verify live before this gate is relied on in production
+ * (docs/05 §4 checklist, T15 territory).
+ */
+export async function isConfluenceAdmin(): Promise<boolean> {
+  try {
+    const response = await api.asUser().requestConfluence(route`/wiki/rest/api/user/current?expand=operations`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) {
+      return false;
+    }
+    const body = (await response.json()) as CurrentUserResponse;
+    return (body.operations ?? []).some((op) => op.operation === 'administer' && op.targetType === 'application');
+  } catch {
     return false;
   }
-  const memberOf = await getCurrentUserGroupIds(accountId);
-  return memberOf.has(settings.complianceManagersGroupId);
+}
+
+/**
+ * data model §2.3: members of `settings.complianceManagersGroupId` reach
+ * the dashboard/drill-down/export without being Confluence admins — *and*
+ * (T13, resolving T9's disclosed deferral) a genuine Confluence admin
+ * always qualifies too, matching T9's own original accept criteria ("admin
+ * or compliance-managers group"). Settings itself (getSettings/
+ * saveSettings) does NOT use this function — it gates on isConfluenceAdmin
+ * alone, deliberately stricter, since compliance-manager membership is
+ * *configured* on the settings page and can't be allowed to grant access
+ * to itself.
+ */
+export async function isComplianceManager(accountId: string): Promise<boolean> {
+  const settings = await getSettings();
+  const [isAdmin, memberOf] = await Promise.all([
+    isConfluenceAdmin(),
+    settings.complianceManagersGroupId ? getCurrentUserGroupIds(accountId) : Promise.resolve(new Set<string>()),
+  ]);
+  if (isAdmin) {
+    return true;
+  }
+  return settings.complianceManagersGroupId !== null && memberOf.has(settings.complianceManagersGroupId);
 }
 
 /** Config write gate (tech design §4 resolver table): page edit permission OR compliance manager. */

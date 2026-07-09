@@ -130,6 +130,9 @@ export const en = {
   'settings.lifecycle.title': 'Data lifecycle',
   'settings.lifecycle.body':
     'Uninstalling the app deletes its data after a 28-day retention window. Export before uninstalling. Reinstalling starts empty; recovery within 21 days requires an Atlassian support request.',
+  'settings.noAccess.header': 'You need Confluence admin access',
+  'settings.noAccess.description': 'Only Confluence site admins can view or change these settings.',
+  'settings.saved': 'Settings saved.',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -88,13 +88,17 @@ export interface ConfigResponse {
 }
 
 /**
- * searchGroups (T7 config modal — group picker). @forge/react's UserPicker
- * is self-contained (searches Confluence's user directory internally); no
- * equivalent GroupPicker component exists in this UI Kit version, so group
- * search is our own resolver over the classic group-picker REST endpoint.
+ * searchGroups (T7 config modal — group picker; also T13 settings' managers
+ * picker). @forge/react's UserPicker is self-contained (searches
+ * Confluence's user directory internally); no equivalent GroupPicker
+ * component exists in this UI Kit version, so group search is our own
+ * resolver over the classic group-picker REST endpoint. `pageId` is
+ * present only for the T7 call site (gates on canConfigure(pageId, ...));
+ * omitted from the T13 settings call site, which gates on isConfluenceAdmin
+ * instead — see resolvers/index.ts's searchGroups handler.
  */
 export interface SearchGroupsPayload {
-  pageId: string;
+  pageId?: string;
   query: string;
 }
 
@@ -246,4 +250,26 @@ export interface StartExportPayload {
 
 export interface StartExportResponse {
   url: string;
+}
+
+/**
+ * getSettings / saveSettings (T13, docs/04 §3.5, data model §2.3). Gated on
+ * isConfluenceAdmin alone (resolvers/auth.ts) — deliberately NOT
+ * compliance-manager-accessible, since this page is where the
+ * compliance-managers group itself gets configured (auth.ts's
+ * isComplianceManager docstring explains the bootstrap reasoning).
+ */
+export type GetSettingsPayload = Record<string, never>;
+
+export interface GetSettingsResponse {
+  complianceManagersGroupId: string | null;
+  /** Resolved for display the same way T7's config modal resolves assigned
+   * group names — best-effort, null if the group no longer exists. */
+  complianceManagersGroupName: string | null;
+  reconfirmDefault: boolean;
+}
+
+export interface SaveSettingsPayload {
+  complianceManagersGroupId: string | null;
+  reconfirmDefault: boolean;
 }

@@ -21,6 +21,9 @@ import {
   type GetPageHistoryResponse,
   type StartExportPayload,
   type StartExportResponse,
+  type GetSettingsPayload,
+  type GetSettingsResponse,
+  type SaveSettingsPayload,
 } from '../shared';
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
@@ -32,12 +35,14 @@ import {
   resolveSpaceKey,
   isMemberOfAnyGroup,
   canConfigure,
+  isConfluenceAdmin,
   searchGroupsByQuery,
   resolveGroupNames,
 } from './auth';
 import { getDashboardRows } from './dashboard';
 import { getPageDetail, getPageHistory } from './pageDetail';
 import { startExport } from './export';
+import { getSettingsForAdmin, saveSettingsForAdmin } from './settings';
 import { APP_VERSION } from '../version';
 
 /**
@@ -255,8 +260,17 @@ export function registerResolvers(resolver: Resolver): void {
       const accountId = requireAccountId(request);
       const { pageId, query } = request.payload;
 
-      if (!(await canConfigure(pageId, accountId))) {
-        return err('FORBIDDEN', 'You need page edit permission or compliance-manager access to search groups.');
+      // T7's config modal passes pageId (gate: canConfigure); T13's
+      // settings page has no page context and gates on isConfluenceAdmin
+      // instead (shared/types.ts's SearchGroupsPayload docstring).
+      const allowed = pageId ? await canConfigure(pageId, accountId) : await isConfluenceAdmin();
+      if (!allowed) {
+        return err(
+          'FORBIDDEN',
+          pageId
+            ? 'You need page edit permission or compliance-manager access to search groups.'
+            : 'You need Confluence admin access to search groups.',
+        );
       }
 
       return ok(await searchGroupsByQuery(query));
@@ -296,6 +310,24 @@ export function registerResolvers(resolver: Resolver): void {
     try {
       const accountId = requireAccountId(request);
       return await startExport(request.payload, accountId);
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<GetSettingsPayload, Result<GetSettingsResponse>>('getSettings', async (request) => {
+    try {
+      requireAccountId(request);
+      return await getSettingsForAdmin();
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<SaveSettingsPayload, Result<GetSettingsResponse>>('saveSettings', async (request) => {
+    try {
+      requireAccountId(request);
+      return await saveSettingsForAdmin(request.payload);
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }
