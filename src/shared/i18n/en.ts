@@ -106,7 +106,11 @@ export const en = {
   'detail.history.assigned': '{actor} assigned {subject}',
   'detail.history.removed': '{actor} removed {subject}',
   'detail.history.dueDate': '{actor} set due date to {date}',
+  'detail.history.empty': 'No history yet.',
   'detail.groupDeleted': 'group deleted',
+  'detail.tab.empty': 'No users in this list.',
+  'detail.deletedUser': 'deleted user',
+  'detail.staleGroups': 'Some assigned groups no longer exist; their members are no longer counted.',
 
   'settings.title': 'Read Confirmation — settings',
   'settings.managers': 'Compliance managers group',

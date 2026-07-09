@@ -104,7 +104,11 @@ export const tr: Record<MessageKey, string> = {
   'detail.history.assigned': '{actor}, {subject} ataması yaptı',
   'detail.history.removed': '{actor}, {subject} atamasını kaldırdı',
   'detail.history.dueDate': '{actor}, son tarihi {date} olarak ayarladı',
+  'detail.history.empty': 'Henüz geçmiş yok.',
   'detail.groupDeleted': 'grup silinmiş',
+  'detail.tab.empty': 'Bu listede kullanıcı yok.',
+  'detail.deletedUser': 'silinmiş kullanıcı',
+  'detail.staleGroups': 'Atanan bazı gruplar artık mevcut değil; üyeleri artık sayılmıyor.',
 
   'settings.title': 'Okuma Onayı — ayarlar',
   'settings.managers': 'Uyum yöneticileri grubu',

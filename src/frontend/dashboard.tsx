@@ -1,5 +1,5 @@
 import React from 'react';
 import ForgeReconciler from '@forge/react';
-import { Dashboard } from './components/Dashboard';
+import { DashboardApp } from './components/DashboardApp';
 
-ForgeReconciler.render(<Dashboard />);
+ForgeReconciler.render(<DashboardApp />);

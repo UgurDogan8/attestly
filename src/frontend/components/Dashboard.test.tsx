@@ -1,8 +1,9 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { LoadingButton, Select, Textfield } from '@forge/react';
+import { LinkButton, LoadingButton, Select, Textfield } from '@forge/react';
 import { Dashboard } from './Dashboard';
+import type { DashboardProps } from './Dashboard';
 import type { DashboardRow } from '../../shared';
 
 jest.mock('@forge/bridge', () => ({
@@ -54,10 +55,10 @@ function row(overrides: Partial<DashboardRow> = {}): DashboardRow {
   };
 }
 
-async function mount(): Promise<ReactTestRenderer> {
+async function mount(props: DashboardProps = {}): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
-    renderer = create(<Dashboard />);
+    renderer = create(<Dashboard {...props} />);
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -129,6 +130,36 @@ describe('Dashboard — row rendering', () => {
     });
     const renderer = await mount();
     expect(extractText(renderer.toJSON())).toContain('⚠');
+  });
+});
+
+describe('Dashboard — row click (T10: opens drill-down)', () => {
+  it('renders the page title as plain text when onOpenPage is not provided', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [row()], nextCursor: null } });
+    const renderer = await mount();
+    expect(renderer.root.findAllByType(LinkButton)).toHaveLength(0);
+    expect(extractText(renderer.toJSON())).toContain('Security Policy');
+  });
+
+  it('renders the page title as a LinkButton and calls onOpenPage(pageId) on click', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [row({ pageId: 'page-7' })], nextCursor: null } });
+    const onOpenPage = jest.fn();
+    const renderer = await mount({ onOpenPage });
+
+    renderer.root.findByType(LinkButton).props.onClick();
+    expect(onOpenPage).toHaveBeenCalledWith('page-7');
+  });
+
+  it('a deleted row still opens the drill-down via its "[deleted page {id}]" link', async () => {
+    bridge.invoke.mockResolvedValue({
+      ok: true,
+      data: { rows: [row({ pageId: 'page-9', title: null, deleted: true })], nextCursor: null },
+    });
+    const onOpenPage = jest.fn();
+    const renderer = await mount({ onOpenPage });
+
+    renderer.root.findByType(LinkButton).props.onClick();
+    expect(onOpenPage).toHaveBeenCalledWith('page-9');
   });
 });
 

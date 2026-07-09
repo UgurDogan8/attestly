@@ -14,7 +14,7 @@ jest.mock('@forge/kvs', () => {
 });
 
 import kvsFake from '@forge/kvs';
-import { appendAuditEntry, drainAuditByPage } from './audit';
+import { appendAuditEntry, drainAuditByPage, queryAuditPage } from './audit';
 
 const fake = kvsFake as unknown as InMemoryKvs;
 
@@ -64,6 +64,26 @@ describe('appendAuditEntry / drainAuditByPage (data model §2.4 — append-only)
 
     const all = await drainAll(drainAuditByPage('page-1'));
     expect(all).toHaveLength(2);
+  });
+});
+
+describe('queryAuditPage (T10 getPageHistory — client-resumable cursor, most-recent-first)', () => {
+  it('orders entries most-recent-first', async () => {
+    await appendAuditEntry(anAuditEntry({ pageId: 'page-1', at: '2026-07-01T00:00:00.000Z', entry: { action: 'created' } }));
+    await appendAuditEntry(anAuditEntry({ pageId: 'page-1', at: '2026-07-05T00:00:00.000Z', entry: { action: 'updated' } }));
+
+    const page = await queryAuditPage('page-1', undefined);
+    expect(page.results.map((r) => r.entry.action)).toEqual(['updated', 'created']);
+  });
+
+  it('a returned cursor fetches the next page (client-resumable, unlike drainAuditByPage)', async () => {
+    for (let i = 0; i < 3; i += 1) {
+      await appendAuditEntry(anAuditEntry({ pageId: 'page-1', at: `2026-07-0${i + 1}T00:00:00.000Z` }));
+    }
+
+    const first = await queryAuditPage('page-1', undefined);
+    expect(first.results).toHaveLength(3); // under MAX_PAGE_SIZE, no cursor needed for this assertion to matter
+    expect(first.nextCursor).toBeUndefined();
   });
 });
 

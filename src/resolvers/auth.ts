@@ -178,6 +178,100 @@ export async function searchGroupsByQuery(query: string): Promise<GroupOption[]>
   return (body.results ?? []).map((group) => ({ id: group.id, name: group.name }));
 }
 
+export type ViewPermissionOutcome = 'can-view' | 'cannot-view' | 'deleted-user';
+
+/**
+ * Other-user cannot-view check (T10 drill-down, tech design §4's tier-3
+ * `asApp()` exception (a): run only for pages that already passed the
+ * viewer-visibility filter, and only to answer "can THIS OTHER user view
+ * this page" — never to show its content. `operation: 'read'` mirrors the
+ * live-validated example in tech design §4 (that snippet used 'update' for
+ * the *current* user's edit-permission check in hasEditPermission above;
+ * this is deliberately 'read' for a different question).
+ *
+ * HTTP 404 means the account itself is gone (erased/deactivated), not that
+ * it lacks permission — data model §4 is explicit: map that to a distinct
+ * outcome so the row can render "[deleted user]" rather than a misleading
+ * "grant them permission" hint. Any other failure fails CLOSED to
+ * cannot-view (never crash the row, never guess at content).
+ */
+export async function checkViewPermission(pageId: string, accountId: string): Promise<ViewPermissionOutcome> {
+  try {
+    const response = await api.asApp().requestConfluence(route`/wiki/rest/api/content/${pageId}/permission/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ subject: { type: 'user', identifier: accountId }, operation: 'read' }),
+    });
+    if (response.status === 404) {
+      return 'deleted-user';
+    }
+    if (!response.ok) {
+      return 'cannot-view';
+    }
+    const body = (await response.json()) as { hasPermission?: boolean };
+    return body.hasPermission === true ? 'can-view' : 'cannot-view';
+  } catch {
+    return 'cannot-view';
+  }
+}
+
+interface GroupMember {
+  accountId: string;
+}
+
+interface MembersByGroupIdResponse {
+  results?: GroupMember[];
+}
+
+/**
+ * `GET /wiki/rest/api/group/{groupId}/membersByGroupId` (T10 — verified
+ * against Atlassian's published Confluence Cloud REST API docs this task;
+ * same `read:group:confluence` + `read:user:confluence` scopes already
+ * declared, no manifest change needed). Reverse of getCurrentUserGroupIds:
+ * given a group, list its members, for resolving group-based assignments at
+ * drill-down call time (PRD B1 — membership must reflect live, not a
+ * snapshot). Start/limit pagination (this endpoint's shape, unlike
+ * memberof's `_links.next`) — page-sized loop until a short page ends it.
+ * Best-effort: a group that fails to resolve (e.g. deleted) simply
+ * contributes zero members rather than failing the whole drill-down — see
+ * data model's degraded-states table ("group deleted -> members no longer
+ * counted").
+ */
+export async function getGroupMemberAccountIds(groupId: string): Promise<string[]> {
+  const accountIds: string[] = [];
+  const limit = 200;
+  let start = 0;
+
+  for (;;) {
+    let response;
+    try {
+      response = await api
+        .asUser()
+        .requestConfluence(route`/wiki/rest/api/group/${groupId}/membersByGroupId?start=${start}&limit=${limit}`, {
+          headers: { Accept: 'application/json' },
+        });
+    } catch {
+      break;
+    }
+    if (!response.ok) {
+      break;
+    }
+    const body = (await response.json()) as MembersByGroupIdResponse;
+    const results = body.results ?? [];
+    for (const member of results) {
+      if (member.accountId) {
+        accountIds.push(member.accountId);
+      }
+    }
+    if (results.length < limit) {
+      break;
+    }
+    start += results.length;
+  }
+
+  return accountIds;
+}
+
 interface GroupByIdResponse {
   id: string;
   name: string;

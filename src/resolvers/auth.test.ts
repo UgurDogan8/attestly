@@ -36,6 +36,8 @@ import {
   canConfigure,
   searchGroupsByQuery,
   resolveGroupNames,
+  checkViewPermission,
+  getGroupMemberAccountIds,
 } from './auth';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -280,5 +282,81 @@ describe('resolveGroupNames (T7 — pre-populate the config modal with real name
       throw new Error('should not be called');
     });
     expect(await resolveGroupNames([])).toEqual([]);
+  });
+});
+
+describe('checkViewPermission (T10 — other-user cannot-view check, tier-3 asApp exception)', () => {
+  it('can-view: hasPermission true', async () => {
+    fakeApi.setHandler((url, init) => {
+      expect(url).toBe('/wiki/rest/api/content/page-1/permission/check');
+      expect(JSON.parse(init?.body ?? '{}')).toEqual({
+        subject: { type: 'user', identifier: 'acc-1' },
+        operation: 'read',
+      });
+      return jsonResponse(200, { hasPermission: true });
+    });
+    expect(await checkViewPermission('page-1', 'acc-1')).toBe('can-view');
+  });
+
+  it('cannot-view: hasPermission false', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { hasPermission: false }));
+    expect(await checkViewPermission('page-1', 'acc-1')).toBe('cannot-view');
+  });
+
+  it('deleted-user: HTTP 404 maps to deleted-user, not cannot-view (data model §4)', async () => {
+    fakeApi.setHandler(() => jsonResponse(404, {}));
+    expect(await checkViewPermission('page-1', 'acc-1')).toBe('deleted-user');
+  });
+
+  it('fails closed to cannot-view on an unexpected error status', async () => {
+    fakeApi.setHandler(() => jsonResponse(500, {}));
+    expect(await checkViewPermission('page-1', 'acc-1')).toBe('cannot-view');
+  });
+
+  it('fails closed to cannot-view when the request throws', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('network blip');
+    });
+    expect(await checkViewPermission('page-1', 'acc-1')).toBe('cannot-view');
+  });
+});
+
+describe('getGroupMemberAccountIds (T10 — reverse of getCurrentUserGroupIds, start/limit paginated)', () => {
+  it('collects accountIds from a single page', async () => {
+    fakeApi.setHandler((url) => {
+      expect(url).toBe('/wiki/rest/api/group/g1/membersByGroupId?start=0&limit=200');
+      return jsonResponse(200, { results: [{ accountId: 'acc-1' }, { accountId: 'acc-2' }] });
+    });
+    expect(await getGroupMemberAccountIds('g1')).toEqual(['acc-1', 'acc-2']);
+  });
+
+  it('follows start/limit pagination until a short page ends it', async () => {
+    let calls = 0;
+    fakeApi.setHandler((url) => {
+      calls += 1;
+      if (url.includes('start=0')) {
+        return jsonResponse(
+          200,
+          { results: Array.from({ length: 200 }, (_, i) => ({ accountId: `acc-${i}` })) },
+        );
+      }
+      expect(url).toContain('start=200');
+      return jsonResponse(200, { results: [{ accountId: 'acc-200' }] });
+    });
+    const result = await getGroupMemberAccountIds('g1');
+    expect(result).toHaveLength(201);
+    expect(calls).toBe(2);
+  });
+
+  it('a deleted/unresolvable group contributes zero members (best-effort, never throws)', async () => {
+    fakeApi.setHandler(() => jsonResponse(404, {}));
+    expect(await getGroupMemberAccountIds('gone')).toEqual([]);
+  });
+
+  it('a thrown request also degrades to zero members', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('network blip');
+    });
+    expect(await getGroupMemberAccountIds('g1')).toEqual([]);
   });
 });

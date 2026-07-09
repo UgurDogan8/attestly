@@ -50,10 +50,13 @@ import { ok, err, type Result, type GetDashboardPayload, type GetDashboardRespon
  * explicitly tolerates this going stale if a page moves.
  */
 
-export type PageVisibility = { kind: 'visible'; title: string } | { kind: 'deleted' } | { kind: 'restricted' };
+export type PageVisibility =
+  | { kind: 'visible'; title: string; version?: number }
+  | { kind: 'deleted' }
+  | { kind: 'restricted' };
 
 interface BulkPagesResponse {
-  results?: { id: string; title: string }[];
+  results?: { id: string; title: string; version?: { number: number } }[];
 }
 
 /** Confluence v2 pages GET's own page cap; matches this app's own MAX_PAGE_SIZE chunking. */
@@ -75,7 +78,7 @@ export async function resolvePageVisibility(pageIds: string[]): Promise<Map<stri
     if (response.ok) {
       const body = (await response.json()) as BulkPagesResponse;
       for (const page of body.results ?? []) {
-        result.set(page.id, { kind: 'visible', title: page.title });
+        result.set(page.id, { kind: 'visible', title: page.title, version: page.version?.number });
       }
     }
   } catch {

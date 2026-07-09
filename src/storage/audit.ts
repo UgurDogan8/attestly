@@ -1,4 +1,4 @@
-import kvs from '@forge/kvs';
+import kvs, { Sort } from '@forge/kvs';
 import { randomUUID } from 'node:crypto';
 import { ENTITY, configAuditKey } from './entities';
 import { drainPages, MAX_PAGE_SIZE, type CursorPage } from './pagination';
@@ -31,6 +31,7 @@ function queryByPage(pageId: string, cursor: string | undefined): Promise<Cursor
     .entity<ConfigAuditRecord>(ENTITY.configAudit)
     .query()
     .index('by-page', { partition: [pageId] })
+    .sort(Sort.DESC) // most recent change first (T10 History tab UX)
     .limit(MAX_PAGE_SIZE);
   if (cursor) {
     q = q.cursor(cursor);
@@ -41,7 +42,18 @@ function queryByPage(pageId: string, cursor: string | undefined): Promise<Cursor
   }));
 }
 
-/** History tab (docs/04 §3.3). */
+/**
+ * One KVS page of a page's audit log, most-recent-first. Exported (not just
+ * wrapped by drainAuditByPage below) for the same reason T9's
+ * queryTrackedPage is: the T10 getPageHistory resolver hands its cursor back
+ * to the client on "Load more", and a generator can't resume across separate
+ * serverless invocations.
+ */
+export function queryAuditPage(pageId: string, cursor: string | undefined): Promise<CursorPage<ConfigAuditRecord>> {
+  return queryByPage(pageId, cursor);
+}
+
+/** History tab (docs/04 §3.3), in-process draining for callers that want it all at once. */
 export function drainAuditByPage(pageId: string): AsyncGenerator<ConfigAuditRecord[]> {
   return drainPages((cursor) => queryByPage(pageId, cursor));
 }

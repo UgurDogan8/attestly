@@ -4,6 +4,7 @@ import {
   DynamicTable,
   EmptyState,
   Inline,
+  LinkButton,
   LoadingButton,
   ProgressBar,
   Select,
@@ -39,7 +40,12 @@ interface StatusOption {
   value: StatusFilter;
 }
 
-export function Dashboard(): React.JSX.Element {
+export interface DashboardProps {
+  /** Opens the T10 drill-down for a row (docs/04 §3.2: "Row click -> drill-down"). Omitted -> the page cell renders as plain text, not a link. */
+  onOpenPage?: (pageId: string) => void;
+}
+
+export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Element {
   const { t } = useI18n();
   const dashboardInvoke = useInvoke<GetDashboardPayload, GetDashboardResponse>('getDashboard');
 
@@ -156,7 +162,13 @@ export function Dashboard(): React.JSX.Element {
   const tableRows = rows.map((row) => ({
     key: row.pageId,
     cells: [
-      { key: 'page', content: row.deleted ? t('dashboard.deletedPage', { id: row.pageId }) : row.title },
+      {
+        key: 'page',
+        content: (() => {
+          const label = row.deleted ? t('dashboard.deletedPage', { id: row.pageId }) : row.title;
+          return onOpenPage ? <LinkButton onClick={() => onOpenPage(row.pageId)}>{label}</LinkButton> : label;
+        })(),
+      },
       { key: 'space', content: row.spaceKey },
       { key: 'assigned', content: String(row.assignedCount) },
       {

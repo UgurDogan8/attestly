@@ -15,6 +15,10 @@ import {
   type GroupOption,
   type GetDashboardPayload,
   type GetDashboardResponse,
+  type GetPageDetailPayload,
+  type GetPageDetailResponse,
+  type GetPageHistoryPayload,
+  type GetPageHistoryResponse,
 } from '../shared';
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
@@ -30,6 +34,7 @@ import {
   resolveGroupNames,
 } from './auth';
 import { getDashboardRows } from './dashboard';
+import { getPageDetail, getPageHistory } from './pageDetail';
 import { APP_VERSION } from '../version';
 
 /**
@@ -261,6 +266,24 @@ export function registerResolvers(resolver: Resolver): void {
     try {
       const accountId = requireAccountId(request);
       return await getDashboardRows(request.payload, accountId);
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<GetPageDetailPayload, Result<GetPageDetailResponse>>('getPageDetail', async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      return await getPageDetail(request.payload, accountId);
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<GetPageHistoryPayload, Result<GetPageHistoryResponse>>('getPageHistory', async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      return await getPageHistory(request.payload, accountId);
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }
