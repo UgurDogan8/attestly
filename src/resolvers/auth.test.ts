@@ -34,6 +34,8 @@ import {
   isMemberOfAnyGroup,
   isComplianceManager,
   canConfigure,
+  searchGroupsByQuery,
+  resolveGroupNames,
 } from './auth';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -216,5 +218,67 @@ describe('canConfigure (tech design §4 — page edit permission OR compliance m
       return jsonResponse(200, { results: [] });
     });
     expect(await canConfigure('page-1', 'acc-1')).toBe(false);
+  });
+});
+
+describe('searchGroupsByQuery (T7 — verified against Confluence Cloud REST API docs)', () => {
+  it('maps results to {id, name} and passes the query through', async () => {
+    fakeApi.setHandler((url) => {
+      expect(url).toBe('/wiki/rest/api/group/picker?query=sec&limit=20');
+      return jsonResponse(200, {
+        results: [
+          { id: 'g1', name: 'sec-all', type: 'group' },
+          { id: 'g2', name: 'sec-managers', type: 'group' },
+        ],
+      });
+    });
+    expect(await searchGroupsByQuery('sec')).toEqual([
+      { id: 'g1', name: 'sec-all' },
+      { id: 'g2', name: 'sec-managers' },
+    ]);
+  });
+
+  it('returns an empty array on a non-200 response rather than throwing', async () => {
+    fakeApi.setHandler(() => jsonResponse(500, {}));
+    expect(await searchGroupsByQuery('sec')).toEqual([]);
+  });
+
+  it('returns an empty array when the API omits results', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, {}));
+    expect(await searchGroupsByQuery('sec')).toEqual([]);
+  });
+});
+
+describe('resolveGroupNames (T7 — pre-populate the config modal with real names, not raw IDs)', () => {
+  it('resolves every ID to its name', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('id=g1')) return jsonResponse(200, { id: 'g1', name: 'sec-all' });
+      if (url.includes('id=g2')) return jsonResponse(200, { id: 'g2', name: 'hr-all' });
+      return jsonResponse(404, {});
+    });
+    const result = await resolveGroupNames(['g1', 'g2']);
+    expect(result).toEqual(
+      expect.arrayContaining([
+        { id: 'g1', name: 'sec-all' },
+        { id: 'g2', name: 'hr-all' },
+      ]),
+    );
+    expect(result).toHaveLength(2);
+  });
+
+  it('drops (does not throw for) a group that fails to resolve, e.g. since deleted', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('id=g1')) return jsonResponse(200, { id: 'g1', name: 'sec-all' });
+      return jsonResponse(404, {}); // g2 no longer exists
+    });
+    const result = await resolveGroupNames(['g1', 'g2']);
+    expect(result).toEqual([{ id: 'g1', name: 'sec-all' }]);
+  });
+
+  it('returns an empty array for an empty input without making a request', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('should not be called');
+    });
+    expect(await resolveGroupNames([])).toEqual([]);
   });
 });

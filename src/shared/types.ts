@@ -38,6 +38,12 @@ export interface PageStatusResponse {
    * confirmed version {v} on {datetime}" needs this on page load, not just
    * right after a fresh confirm click). Null when status is outstanding/expired. */
   confirmedAt: string | null;
+  /** Whether the *current* user could open the config modal (T7: page edit
+   * permission OR compliance manager) — a UX hint only, so the macro can
+   * decide whether to show the "Configure" button at all. getConfig/
+   * saveConfig independently re-check this server-side regardless; a client
+   * that never saw this flag (or a forged true) still can't bypass the gate. */
+  canConfigure: boolean;
 }
 
 /** confirm (macro — tech design §4/§6.1/§6.3). */
@@ -72,6 +78,27 @@ export interface ConfigResponse {
   pageId: string;
   assignedUsers: string[];
   assignedGroups: string[];
+  /** `assignedGroups` with names resolved (data model §2.2 only stores IDs)
+   * — lets the config modal pre-populate the group field with real labels
+   * instead of raw IDs. Best-effort: a group that fails to resolve (e.g.
+   * deleted) is simply omitted here while its ID stays in `assignedGroups`. */
+  assignedGroupOptions: GroupOption[];
   dueDate: string | null;
   reconfirmOnChange: boolean;
+}
+
+/**
+ * searchGroups (T7 config modal — group picker). @forge/react's UserPicker
+ * is self-contained (searches Confluence's user directory internally); no
+ * equivalent GroupPicker component exists in this UI Kit version, so group
+ * search is our own resolver over the classic group-picker REST endpoint.
+ */
+export interface SearchGroupsPayload {
+  pageId: string;
+  query: string;
+}
+
+export interface GroupOption {
+  id: string;
+  name: string;
 }

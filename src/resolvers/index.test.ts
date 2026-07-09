@@ -40,6 +40,8 @@ import type {
   GetConfigPayload,
   SaveConfigPayload,
   ConfigResponse,
+  SearchGroupsPayload,
+  GroupOption,
 } from '../shared';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -96,7 +98,7 @@ describe('getPageStatus', () => {
 
     expect(result).toEqual({
       ok: true,
-      data: { status: 'outstanding', pageVersion: 3, dueDate: null, isAssigned: false, confirmedAt: null },
+      data: { status: 'outstanding', pageVersion: 3, dueDate: null, isAssigned: false, confirmedAt: null, canConfigure: true },
     });
   });
 
@@ -108,7 +110,14 @@ describe('getPageStatus', () => {
 
     expect(result).toEqual({
       ok: true,
-      data: { status: 'outstanding', pageVersion: 1, dueDate: '2026-08-15', isAssigned: true, confirmedAt: null },
+      data: {
+        status: 'outstanding',
+        pageVersion: 1,
+        dueDate: '2026-08-15',
+        isAssigned: true,
+        confirmedAt: null,
+        canConfigure: true,
+      },
     });
   });
 
@@ -140,6 +149,17 @@ describe('getPageStatus', () => {
     fakeApi.setHandler(() => jsonResponse(403, {}));
     const result = await invoke<PageStatusPayload, PageStatusResponse>('getPageStatus', { pageId: 'page-1' });
     expect(result).toMatchObject({ ok: false, code: 'PAGE_READ_FAILED' });
+  });
+
+  it('canConfigure is false for a viewer with neither edit permission nor manager membership (T7)', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: false });
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [] });
+      return pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 1, spaceId: '111' })(url);
+    });
+
+    const result = await invoke<PageStatusPayload, PageStatusResponse>('getPageStatus', { pageId: 'page-1' });
+    expect((result as { ok: true; data: PageStatusResponse }).data.canConfigure).toBe(false);
   });
 });
 
@@ -234,13 +254,21 @@ describe('getConfig / saveConfig (tech design §4 — edit permission OR complia
     const result = await invoke<GetConfigPayload, ConfigResponse>('getConfig', { pageId: 'page-1' });
     expect(result).toEqual({
       ok: true,
-      data: { pageId: 'page-1', assignedUsers: [], assignedGroups: [], dueDate: null, reconfirmOnChange: false },
+      data: {
+        pageId: 'page-1',
+        assignedUsers: [],
+        assignedGroups: [],
+        assignedGroupOptions: [],
+        dueDate: null,
+        reconfirmOnChange: false,
+      },
     });
   });
 
   it('saveConfig creates a new config, resolves spaceKey via a page read, and appends an audit entry', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'sec-all', name: 'Security All' });
       return pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 1, spaceId: '111' })(url);
     });
 
@@ -253,7 +281,10 @@ describe('getConfig / saveConfig (tech design §4 — edit permission OR complia
     };
     const result = await invoke<SaveConfigPayload, ConfigResponse>('saveConfig', payload);
 
-    expect(result).toEqual({ ok: true, data: payload });
+    expect(result).toEqual({
+      ok: true,
+      data: { ...payload, assignedGroupOptions: [{ id: 'sec-all', name: 'Security All' }] },
+    });
 
     const audit = [];
     for await (const page of drainAuditByPage('page-1')) audit.push(...page);
@@ -311,5 +342,50 @@ describe('getConfig / saveConfig (tech design §4 — edit permission OR complia
     };
     const result = await invoke<SaveConfigPayload, ConfigResponse>('saveConfig', payload);
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+});
+
+describe('searchGroups (T7 config modal group field)', () => {
+  it('is forbidden without edit permission or manager membership', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { hasPermission: false, results: [] }));
+    const payload: SearchGroupsPayload = { pageId: 'page-1', query: 'sec' };
+    const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('returns mapped group options for an authorized caller', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      if (url.includes('/group/picker')) {
+        expect(url).toContain('query=sec');
+        return jsonResponse(200, {
+          results: [
+            { id: 'g1', name: 'sec-all', type: 'group' },
+            { id: 'g2', name: 'sec-managers', type: 'group' },
+          ],
+        });
+      }
+      return jsonResponse(200, { results: [] });
+    });
+
+    const payload: SearchGroupsPayload = { pageId: 'page-1', query: 'sec' };
+    const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
+    expect(result).toEqual({
+      ok: true,
+      data: [
+        { id: 'g1', name: 'sec-all' },
+        { id: 'g2', name: 'sec-managers' },
+      ],
+    });
+  });
+
+  it('returns an empty list rather than an error on a non-200 response', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      return jsonResponse(500, {});
+    });
+    const payload: SearchGroupsPayload = { pageId: 'page-1', query: 'sec' };
+    const result = await invoke<SearchGroupsPayload, GroupOption[]>('searchGroups', payload);
+    expect(result).toEqual({ ok: true, data: [] });
   });
 });

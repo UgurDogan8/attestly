@@ -38,6 +38,7 @@ export const en = {
   'byline.dialog.confirmedDetail': 'You confirmed version {version} on {datetime}.',
 
   'config.title': 'Read confirmation settings',
+  'config.openButton': 'Configure read confirmation',
   'config.who': 'Who must confirm?',
   'config.users': 'Users',
   'config.users.placeholder': 'Add individual users…',

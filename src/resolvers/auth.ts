@@ -1,5 +1,6 @@
 import api, { route, assumeTrustedRoute, type Route } from '@forge/api';
 import { getSettings } from '../storage/settings';
+import type { GroupOption } from '../shared';
 
 /**
  * Role/permission gate helpers (tech design §4's three-tier model). Every
@@ -17,6 +18,11 @@ import { getSettings } from '../storage/settings';
  * unexpected response shape or error (denies the permission / treats the
  * page as unreadable) rather than crashing or failing open — verify during
  * the next real Forge deploy-and-test pass (docs/05 §4 checklist).
+ *
+ * `searchGroupsByQuery` (T7) is the one exception: its endpoint, params,
+ * scope, and response shape were confirmed directly against Atlassian's
+ * published Confluence Cloud REST API docs during this task, not just
+ * inferred from a prior build's pattern.
  */
 
 export interface PageRead {
@@ -141,4 +147,67 @@ export async function isComplianceManager(accountId: string): Promise<boolean> {
 export async function canConfigure(pageId: string, accountId: string): Promise<boolean> {
   const [canEdit, isManager] = await Promise.all([hasEditPermission(pageId, accountId), isComplianceManager(accountId)]);
   return canEdit || isManager;
+}
+
+interface GroupPickerResult {
+  id: string;
+  name: string;
+}
+
+interface GroupPickerResponse {
+  results?: GroupPickerResult[];
+}
+
+/**
+ * `GET /wiki/rest/api/group/picker?query=...` (verified against Atlassian's
+ * Confluence Cloud REST API docs, scope `read:group:confluence` — already
+ * declared, no manifest change needed). Used by the T7 config modal's group
+ * field, since no UI Kit GroupPicker component exists (unlike UserPicker,
+ * which searches Confluence's user directory internally).
+ */
+export async function searchGroupsByQuery(query: string): Promise<GroupOption[]> {
+  const response = await api
+    .asUser()
+    .requestConfluence(route`/wiki/rest/api/group/picker?query=${query}&limit=20`, {
+      headers: { Accept: 'application/json' },
+    });
+  if (!response.ok) {
+    return [];
+  }
+  const body = (await response.json()) as GroupPickerResponse;
+  return (body.results ?? []).map((group) => ({ id: group.id, name: group.name }));
+}
+
+interface GroupByIdResponse {
+  id: string;
+  name: string;
+}
+
+/**
+ * `GET /wiki/rest/api/group/by-id?id=...` (verified against Atlassian's
+ * Confluence Cloud REST API docs, same `read:group:confluence` scope).
+ * Resolves already-assigned group IDs (data model §2.2 stores IDs only) to
+ * names so the config modal can pre-populate real labels instead of raw
+ * IDs. Best-effort per group: a failed lookup (e.g. a since-deleted group)
+ * is dropped rather than failing the whole config load — the ID stays
+ * authoritative in storage regardless of whether its name still resolves.
+ */
+export async function resolveGroupNames(groupIds: string[]): Promise<GroupOption[]> {
+  const resolved = await Promise.all(
+    groupIds.map(async (id): Promise<GroupOption | null> => {
+      try {
+        const response = await api.asUser().requestConfluence(route`/wiki/rest/api/group/by-id?id=${id}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+          return null;
+        }
+        const body = (await response.json()) as GroupByIdResponse;
+        return { id: body.id, name: body.name };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return resolved.filter((group): group is GroupOption => group !== null);
 }

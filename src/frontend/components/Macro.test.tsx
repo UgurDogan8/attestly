@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { LoadingButton } from '@forge/react';
+import { LoadingButton, Button } from '@forge/react';
 import { Macro } from './Macro';
 
 jest.mock('@forge/bridge', () => ({
@@ -209,5 +209,66 @@ describe('Macro — confirm flow (R2 -> R3, pessimistic)', () => {
     const text = extractText(renderer.toJSON());
     expect(text).toContain('Read confirmation required');
     expect(text).not.toContain('This page was just updated');
+  });
+});
+
+describe('Macro — T7 config modal wiring', () => {
+  const READY_STATUS = {
+    ok: true,
+    data: { status: 'outstanding', pageVersion: 1, dueDate: null, isAssigned: true, confirmedAt: null, canConfigure: true },
+  };
+  const EMPTY_CONFIG = {
+    ok: true,
+    data: { pageId: 'page-1', assignedUsers: [], assignedGroups: [], assignedGroupOptions: [], dueDate: null, reconfirmOnChange: false },
+  };
+
+  it('shows the Configure button only when canConfigure is true', async () => {
+    bridge.invoke.mockResolvedValue(READY_STATUS);
+    const renderer = await mountMacro();
+    expect(extractText(renderer.toJSON())).toContain('Configure read confirmation');
+  });
+
+  it('hides the Configure button when canConfigure is false', async () => {
+    bridge.invoke.mockResolvedValue({ ...READY_STATUS, data: { ...READY_STATUS.data, canConfigure: false } });
+    const renderer = await mountMacro();
+    expect(extractText(renderer.toJSON())).not.toContain('Configure read confirmation');
+  });
+
+  it('clicking Configure opens the modal, and saving refreshes the macro status', async () => {
+    let statusCalls = 0;
+    bridge.invoke.mockImplementation((functionKey: string) => {
+      if (functionKey === 'getPageStatus') {
+        statusCalls += 1;
+        return Promise.resolve(READY_STATUS);
+      }
+      if (functionKey === 'getConfig') return Promise.resolve(EMPTY_CONFIG);
+      if (functionKey === 'saveConfig') return Promise.resolve(EMPTY_CONFIG);
+      return Promise.resolve({ ok: true, data: [] });
+    });
+
+    const renderer = await mountMacro();
+    expect(statusCalls).toBe(1);
+
+    await act(async () => {
+      renderer.root.findByType(Button).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(extractText(renderer.toJSON())).toContain('Read confirmation settings'); // config.title, modal open
+
+    await act(async () => {
+      // Two LoadingButtons now exist -- the macro's own confirm button and
+      // the modal's Save button (rendered after it in the tree, since the
+      // modal is the last child of the 'ready' phase's Stack).
+      const buttons = renderer.root.findAllByType(LoadingButton);
+      buttons[buttons.length - 1].props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Modal closed, status re-fetched once more for the current page.
+    expect(extractText(renderer.toJSON())).not.toContain('Read confirmation settings');
+    expect(statusCalls).toBe(2);
   });
 });

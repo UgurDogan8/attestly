@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { LoadingButton, SectionMessage, Spinner, Stack, Text } from '@forge/react';
+import { Button, LoadingButton, SectionMessage, Spinner, Stack, Text } from '@forge/react';
 import { view } from '@forge/bridge';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { ConfirmBlock } from './ConfirmBlock';
+import { ConfigModal } from './ConfigModal';
 import type { PageStatusPayload, PageStatusResponse, ConfirmPayload, ConfirmResponse } from '../../shared';
 
 /**
@@ -43,6 +44,7 @@ export function Macro(): React.JSX.Element | null {
   const [pageId, setPageId] = useState<string | null>(null);
   const [phase, setPhase] = useState<MacroPhase>({ kind: 'loading' });
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const statusInvoke = useInvoke<PageStatusPayload, PageStatusResponse>('getPageStatus');
   const confirmInvoke = useInvoke<ConfirmPayload, ConfirmResponse>('confirm');
 
@@ -123,6 +125,16 @@ export function Macro(): React.JSX.Element | null {
     });
   }
 
+  async function refreshStatus(id: string): Promise<void> {
+    const result = await statusInvoke.run({ pageId: id });
+    if (!result.ok) {
+      setPhase({ kind: 'error', message: result.message });
+      return;
+    }
+    setConfirmError(null);
+    setPhase({ kind: 'ready', status: result.data });
+  }
+
   async function handleReload(): Promise<void> {
     if (!pageId) {
       return;
@@ -132,13 +144,17 @@ export function Macro(): React.JSX.Element | null {
     // top-level navigation from inside a UI Kit resource is unverified and
     // out of scope for what this action actually needs to accomplish: give
     // the reader a confirm button for the current version again).
-    const result = await statusInvoke.run({ pageId });
-    if (!result.ok) {
-      setPhase({ kind: 'error', message: result.message });
-      return;
+    await refreshStatus(pageId);
+  }
+
+  function handleConfigSaved(): void {
+    setIsConfigModalOpen(false);
+    if (pageId) {
+      // Config changes can affect the current user's own isAssigned/dueDate
+      // (e.g. an editor assigning themselves) -- refetch rather than assume
+      // the modal's return value matches what getPageStatus would compute.
+      void refreshStatus(pageId);
     }
-    setConfirmError(null);
-    setPhase({ kind: 'ready', status: result.data });
   }
 
   switch (phase.kind) {
@@ -171,12 +187,20 @@ export function Macro(): React.JSX.Element | null {
 
     case 'ready':
       return (
-        <ConfirmBlock
-          status={phase.status}
-          onConfirm={handleConfirm}
-          confirming={confirmInvoke.loading}
-          confirmError={confirmError}
-        />
+        <Stack space="space.100">
+          <ConfirmBlock
+            status={phase.status}
+            onConfirm={handleConfirm}
+            confirming={confirmInvoke.loading}
+            confirmError={confirmError}
+          />
+          {phase.status.canConfigure ? (
+            <Button onClick={() => setIsConfigModalOpen(true)}>{t('config.openButton')}</Button>
+          ) : null}
+          {isConfigModalOpen && pageId ? (
+            <ConfigModal pageId={pageId} onClose={() => setIsConfigModalOpen(false)} onSaved={handleConfigSaved} />
+          ) : null}
+        </Stack>
       );
 
     default:

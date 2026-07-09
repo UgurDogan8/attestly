@@ -36,6 +36,7 @@ export const tr: Record<MessageKey, string> = {
   'byline.dialog.confirmedDetail': '{version} numaralı sürümü {datetime} tarihinde onayladınız.',
 
   'config.title': 'Okuma onayı ayarları',
+  'config.openButton': 'Okuma onayını yapılandır',
   'config.who': 'Kimler onaylamalı?',
   'config.users': 'Kullanıcılar',
   'config.users.placeholder': 'Tek tek kullanıcı ekleyin…',

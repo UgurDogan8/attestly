@@ -42,6 +42,7 @@ function status(overrides: Partial<PageStatusResponse> = {}): PageStatusResponse
     dueDate: null,
     isAssigned: true,
     confirmedAt: null,
+    canConfigure: false,
     ...overrides,
   };
 }

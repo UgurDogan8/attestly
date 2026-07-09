@@ -11,13 +11,22 @@ import {
   type GetConfigPayload,
   type SaveConfigPayload,
   type ConfigResponse,
+  type SearchGroupsPayload,
+  type GroupOption,
 } from '../shared';
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
 import { getLatestConfirmation, writeConfirmation } from '../storage/confirmations';
 import { getPageConfig, savePageConfig, type PageConfigRecord } from '../storage/configs';
 import { appendAuditEntry } from '../storage/audit';
-import { readPageAsUser, resolveSpaceKey, isMemberOfAnyGroup, canConfigure } from './auth';
+import {
+  readPageAsUser,
+  resolveSpaceKey,
+  isMemberOfAnyGroup,
+  canConfigure,
+  searchGroupsByQuery,
+  resolveGroupNames,
+} from './auth';
 import { APP_VERSION } from '../version';
 
 /**
@@ -56,7 +65,11 @@ export function registerResolvers(resolver: Resolver): void {
         return err('PAGE_READ_FAILED', `Could not read page ${pageId} (status ${pageRead.status}).`);
       }
 
-      const [config, latest] = await Promise.all([getPageConfig(pageId), getLatestConfirmation(pageId, accountId)]);
+      const [config, latest, mayConfigure] = await Promise.all([
+        getPageConfig(pageId),
+        getLatestConfirmation(pageId, accountId),
+        canConfigure(pageId, accountId),
+      ]);
 
       const reconfirmOnChange = config?.reconfirmOnChange ?? false;
       const status = computeStatus({
@@ -76,6 +89,7 @@ export function registerResolvers(resolver: Resolver): void {
         dueDate: config?.dueDate ?? null,
         isAssigned: await resolveIsAssigned(config, accountId),
         confirmedAt: latest?.confirmedAt ?? null,
+        canConfigure: mayConfigure,
       });
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
@@ -146,6 +160,7 @@ export function registerResolvers(resolver: Resolver): void {
         pageId,
         assignedUsers: config?.assignedUsers ?? [],
         assignedGroups: config?.assignedGroups ?? [],
+        assignedGroupOptions: config ? await resolveGroupNames(config.assignedGroups) : [],
         dueDate: config?.dueDate ?? null,
         reconfirmOnChange: config?.reconfirmOnChange ?? false,
       });
@@ -211,7 +226,29 @@ export function registerResolvers(resolver: Resolver): void {
         schemaVersion: 1,
       });
 
-      return ok({ pageId, assignedUsers, assignedGroups, dueDate, reconfirmOnChange });
+      return ok({
+        pageId,
+        assignedUsers,
+        assignedGroups,
+        assignedGroupOptions: await resolveGroupNames(assignedGroups),
+        dueDate,
+        reconfirmOnChange,
+      });
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  });
+
+  resolver.define<SearchGroupsPayload, Result<GroupOption[]>>('searchGroups', async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      const { pageId, query } = request.payload;
+
+      if (!(await canConfigure(pageId, accountId))) {
+        return err('FORBIDDEN', 'You need page edit permission or compliance-manager access to search groups.');
+      }
+
+      return ok(await searchGroupsByQuery(query));
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }
