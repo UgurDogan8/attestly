@@ -29,6 +29,22 @@ module.exports = tseslint.config(
           ],
         },
       ],
+      // data model invariant 4: same inputs -> same output, no clock reads
+      // inside. new Date(isoString) (formatting an already-given timestamp)
+      // stays legal — only the zero-argument, live-clock-reading forms are
+      // banned (test plan §2.1).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message: 'src/domain is pure — no clock reads (data model invariant 4).',
+        },
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message:
+            'src/domain is pure — no clock reads (data model invariant 4). new Date(isoString) is fine; new Date() with no arguments reads the system clock.',
+        },
+      ],
     },
   },
 );
