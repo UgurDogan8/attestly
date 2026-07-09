@@ -219,11 +219,12 @@ export interface GetPageHistoryResponse {
 }
 
 /**
- * startExport (T11 — docs/07 §5, data model §4). CSV only in v1; `format` is
- * carried through the job record now so T12 (PDF) can add a branch to the
- * same pipeline without a payload-shape change.
+ * startExport (T11/T12 — docs/07 §5, data model §4). `format` selects which
+ * serializer the export webtrigger uses over the exact same rows (docs/07
+ * §5: "CSV + PDF come from the same export.ts rows -> record parity
+ * guaranteed") — no separate resolver or job shape per format.
  */
-export type ExportFormat = 'csv';
+export type ExportFormat = 'csv' | 'pdf';
 export type ExportScope = 'page' | 'space' | 'site';
 
 export interface StartExportPayload {

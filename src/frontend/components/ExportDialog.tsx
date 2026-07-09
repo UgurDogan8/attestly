@@ -18,11 +18,13 @@ import {
 } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
-import type { StartExportPayload, StartExportResponse, ExportScope, StatusFilter } from '../../shared';
+import type { StartExportPayload, StartExportResponse, ExportFormat, ExportScope, StatusFilter } from '../../shared';
 
 /**
- * The export dialog (docs/06 T11, UX doc §3.4): format (CSV only in v1 —
- * PDF is T12) / scope / date range / status filter -> progress -> download.
+ * The export dialog (docs/06 T11/T12, UX doc §3.4): format (CSV/PDF) / scope
+ * / date range / status filter -> progress -> download. Both formats are
+ * built from the exact same rows server-side (docs/07 §5) — this dialog
+ * just picks which one `startExport` should serialize.
  * `startExport` (asUser, visibility-safe) returns a one-time webtrigger URL;
  * this component never builds or downloads a file itself (UI Kit has no
  * Blob/DOM download API, docs/07 §5) — it renders the URL as
@@ -54,13 +56,20 @@ interface ScopeOption {
   value: ExportScope;
 }
 
+interface FormatOption {
+  label: string;
+  value: ExportFormat;
+}
+
 const INITIAL_SCOPE_OPTION_VALUE: ExportScope = 'site';
 const INITIAL_STATUS_OPTION_VALUE: StatusFilter = 'all';
+const INITIAL_FORMAT_OPTION_VALUE: ExportFormat = 'csv';
 
 export function ExportDialog({ onClose, fixedPageScope, defaultSpaceKey }: ExportDialogProps): React.JSX.Element {
   const { t } = useI18n();
   const startExportInvoke = useInvoke<StartExportPayload, StartExportResponse>('startExport');
 
+  const [format, setFormat] = useState<ExportFormat>('csv');
   const [scope, setScope] = useState<ExportScope>(fixedPageScope ? 'page' : 'site');
   const [spaceKey, setSpaceKey] = useState(defaultSpaceKey ?? '');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -69,6 +78,10 @@ export function ExportDialog({ onClose, fixedPageScope, defaultSpaceKey }: Expor
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
 
+  const formatOptions: FormatOption[] = [
+    { label: t('export.format.csv'), value: 'csv' },
+    { label: t('export.format.pdf'), value: 'pdf' },
+  ];
   const scopeOptions: ScopeOption[] = [
     { label: t('export.scope.space'), value: 'space' },
     { label: t('export.scope.site'), value: 'site' },
@@ -84,7 +97,7 @@ export function ExportDialog({ onClose, fixedPageScope, defaultSpaceKey }: Expor
     setStartError(null);
     setDownloadUrl(null);
     const result = await startExportInvoke.run({
-      format: 'csv',
+      format,
       scope,
       scopeValue: scope === 'page' ? fixedPageScope?.pageId : scope === 'space' ? spaceKey.trim() || undefined : undefined,
       statusFilter,
@@ -103,6 +116,21 @@ export function ExportDialog({ onClose, fixedPageScope, defaultSpaceKey }: Expor
       <Modal onClose={onClose} title={t('export.title')}>
         <ModalBody>
           <Stack space="space.200">
+            <Box>
+              <Label labelFor="exportFormat">{t('export.format')}</Label>
+              <Select
+                inputId="exportFormat"
+                options={formatOptions}
+                defaultValue={formatOptions.find((o) => o.value === INITIAL_FORMAT_OPTION_VALUE)}
+                onChange={(option: unknown) => {
+                  const next = (option as FormatOption | null)?.value;
+                  if (next) {
+                    setFormat(next);
+                  }
+                }}
+              />
+            </Box>
+
             {fixedPageScope ? (
               <Text>{fixedPageScope.pageTitle ?? fixedPageScope.pageId}</Text>
             ) : (
@@ -171,7 +199,7 @@ export function ExportDialog({ onClose, fixedPageScope, defaultSpaceKey }: Expor
           </LoadingButton>
           {downloadUrl ? (
             <LinkButton appearance="primary" href={downloadUrl}>
-              {t('export.download')}
+              {t('export.download', { format: format.toUpperCase() })}
             </LinkButton>
           ) : (
             <LoadingButton appearance="primary" isLoading={startExportInvoke.loading} onClick={handleStart}>

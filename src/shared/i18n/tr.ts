@@ -74,6 +74,8 @@ export const tr: Record<MessageKey, string> = {
 
   'export.title': 'Onayları dışa aktar',
   'export.format': 'Biçim',
+  'export.format.csv': 'CSV',
+  'export.format.pdf': 'PDF',
   'export.scope': 'Kapsam',
   'export.scope.page': 'Bu sayfa',
   'export.scope.space': 'Alan',
@@ -84,7 +86,7 @@ export const tr: Record<MessageKey, string> = {
   'export.start': 'Dışa aktar',
   'export.progress': 'Dışa aktarma hazırlanıyor — kayıtlar getiriliyor…',
   'export.ready': 'Dışa aktarma hazır.',
-  'export.download': 'CSV indir',
+  'export.download': '{format} indir',
   'export.statusFilter': 'Durum',
   'export.spaceKey': 'Alan anahtarı',
 

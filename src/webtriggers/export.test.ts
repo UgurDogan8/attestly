@@ -212,3 +212,45 @@ describe('export webtrigger — CSV generation', () => {
     expect(bodyOf(response)).not.toContain('page-gone');
   });
 });
+
+describe('export webtrigger — PDF generation (T12)', () => {
+  it('streams a base64-encoded PDF with the right headers and filename extension', async () => {
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
+    await createExportJob(aJob({ format: 'pdf', pages: [{ pageId: 'page-1', title: 'Security Policy', deleted: false }] }));
+    fakeApi.setHandler((url) => (url.includes('/permission/check') ? jsonResponse(200, { hasPermission: true }) : jsonResponse(200, { displayName: 'X' })));
+
+    const response = await handler(request({ job: 'tok-1', k: 'test-secret' }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers?.['Content-Type']).toEqual(['application/pdf']);
+    expect(response.headers?.['Content-Disposition']?.[0]).toContain('.pdf"');
+    expect((response as unknown as { isBase64Encoded?: boolean }).isBase64Encoded).toBe(true);
+
+    const pdfText = Buffer.from(bodyOf(response), 'base64').toString('latin1');
+    expect(pdfText.startsWith('%PDF-1.4')).toBe(true);
+    expect(pdfText).toContain('acc-1');
+  });
+
+  it('produces the exact same set of (page, user) records as the CSV of the same scope (record parity)', async () => {
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1', 'acc-2'] }));
+    await writeConfirmation(aConfirmation({ pageId: 'page-1', accountId: 'acc-1', pageVersion: 2, confirmedAt: '2026-07-05T00:00:00.000Z' }));
+    const pages = [{ pageId: 'page-1', title: 'Security Policy', deleted: false }];
+    fakeApi.setHandler((url) => (url.includes('/permission/check') ? jsonResponse(200, { hasPermission: true }) : jsonResponse(200, { displayName: 'X' })));
+
+    await createExportJob(aJob({ token: 'tok-csv', format: 'csv', pages }));
+    const csvBody = bodyOf(await handler(request({ job: 'tok-csv', k: 'test-secret' })));
+
+    await createExportJob(aJob({ token: 'tok-pdf', format: 'pdf', pages }));
+    const pdfBody = Buffer.from(bodyOf(await handler(request({ job: 'tok-pdf', k: 'test-secret' }))), 'base64').toString('latin1');
+
+    // Same records: acc-1 confirmed v2, acc-2 outstanding -- present in both artifacts.
+    expect(csvBody).toContain('acc-1,assigned,confirmed');
+    expect(pdfBody).toContain('acc-1');
+    expect(pdfBody).toContain('confirmed');
+    expect(csvBody).toContain('acc-2,assigned,outstanding');
+    expect(pdfBody).toContain('acc-2');
+    expect(pdfBody).toContain('outstanding');
+    expect(csvBody).toContain('2026-07-05T00:00:00.000Z');
+    expect(pdfBody).toContain('2026-07-05T00:00:00.000Z');
+  });
+});

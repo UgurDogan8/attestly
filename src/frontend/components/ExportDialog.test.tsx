@@ -47,9 +47,9 @@ function exportButton(renderer: ReactTestRenderer) {
   return renderer.root.findAllByType(LoadingButton)[1];
 }
 
-/** When the scope Select is rendered, it's always first (before the status Select). */
+/** Select order is always Format, then (when shown) Scope, then Status. */
 function scopeSelect(renderer: ReactTestRenderer) {
-  return renderer.root.findAllByType(Select)[0];
+  return renderer.root.findAllByType(Select)[1];
 }
 
 beforeEach(() => {
@@ -95,7 +95,7 @@ describe('ExportDialog — scope selection', () => {
     bridge.invoke.mockResolvedValue({ ok: true, data: { url: 'https://example.test/export' } });
     const renderer = await mount({ onClose: jest.fn(), fixedPageScope: { pageId: 'page-1', pageTitle: 'Security Policy' } });
 
-    expect(renderer.root.findAllByType(Select)).toHaveLength(1); // only the status Select, no scope Select
+    expect(renderer.root.findAllByType(Select)).toHaveLength(2); // format + status Select, no scope Select
     expect(extractText(renderer.toJSON())).toContain('Security Policy');
 
     await act(async () => {
@@ -119,6 +119,26 @@ describe('ExportDialog — scope selection', () => {
     });
 
     expect(bridge.invoke).toHaveBeenCalledWith('startExport', expect.objectContaining({ scopeValue: 'HR' }));
+  });
+});
+
+describe('ExportDialog — format selection (T12)', () => {
+  it('switching to PDF sends format "pdf" and labels the download button "Download PDF"', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { url: 'https://example.test/export?job=t&k=s' } });
+    const renderer = await mount({ onClose: jest.fn() });
+
+    await act(async () => {
+      renderer.root.findAllByType(Select)[0].props.onChange({ label: 'PDF', value: 'pdf' });
+    });
+    await act(async () => {
+      exportButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('startExport', expect.objectContaining({ format: 'pdf' }));
+    const downloadLink = renderer.root.findAllByType(LinkButton).find((b) => b.props.href);
+    expect(downloadLink?.props.href).toBe('https://example.test/export?job=t&k=s');
+    expect(extractText(renderer.toJSON())).toContain('Download PDF');
   });
 });
 

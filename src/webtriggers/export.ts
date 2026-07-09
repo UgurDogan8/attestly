@@ -3,6 +3,7 @@ import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
 import { CSV_HEADER, exportRowToCsvCells, matchesDateRange, type ExportRow } from '../domain/export';
 import { toCsv } from '../domain/csv';
+import { buildPdf } from '../domain/pdf';
 import { getGroupMemberAccountIds, checkViewPermission, resolveUserDisplayName } from '../resolvers/auth';
 import { mapWithConcurrency } from '../resolvers/concurrency';
 import { getPageConfig, type PageConfigRecord } from '../storage/configs';
@@ -18,8 +19,10 @@ import type { AssignmentType } from '../shared';
  * (src/resolvers/export.ts). Its own job here is: validate the one-time
  * token+secret, then recompute exact per-user rows the same way T10's
  * drill-down does (group membership, cannot-view, confirmations) — just
- * flattened across every page in the job's scope and shaped into CSV rows
- * per data model §4's normative column list.
+ * flattened across every page in the job's scope, shared by both formats
+ * (T11 CSV, T12 PDF) per data model §4's normative row list. `job.format`
+ * picks the serializer over the exact same `rows` array — CSV/PDF record
+ * parity is guaranteed by construction, not by a separate parity check.
  *
  * asApp-only (tech design §4: asUser() fails outside UI-invoked contexts) —
  * every downstream call here explicitly passes tier `'app'`.
@@ -34,6 +37,18 @@ function queryParam(request: WebTriggerRequest, name: string): string | undefine
 
 function textResponse(statusCode: number, body: string): WebTriggerResponse {
   return { statusCode, headers: { 'Content-Type': ['text/plain; charset=utf-8'] }, body };
+}
+
+/**
+ * `isBase64Encoded` isn't in @forge/api's local WebTriggerResponse type
+ * (an installed-package gap, this file's standing convention for verifying
+ * against real docs rather than trusting incomplete local types) but is
+ * documented platform behavior for returning binary bodies from a
+ * webtrigger: base64-encode, set this flag, and the platform decodes it
+ * before it reaches the browser.
+ */
+function binaryResponse(statusCode: number, headers: Record<string, string[]>, body: Buffer): WebTriggerResponse & { isBase64Encoded: true } {
+  return { statusCode, headers, body: body.toString('base64'), isBase64Encoded: true };
 }
 
 interface PageRowsContext {
@@ -147,11 +162,23 @@ export async function handler(request: WebTriggerRequest): Promise<WebTriggerRes
       rows.push(...pageRows.filter((row) => matchesDateRange(row, job.dateFrom ?? undefined, job.dateTo ?? undefined)));
     }
 
+    const dateStamp = exportedAtUtc.slice(0, 10);
+
+    if (job.format === 'pdf') {
+      const pdf = buildPdf({ scope: job.scope, exportedAtUtc, appVersion: APP_VERSION }, rows);
+      const filename = `read-confirmations_${job.scope}_${dateStamp}.pdf`;
+      return binaryResponse(
+        200,
+        { 'Content-Type': ['application/pdf'], 'Content-Disposition': [`attachment; filename="${filename}"`] },
+        pdf,
+      );
+    }
+
     const csv = toCsv(
       CSV_HEADER,
       rows.map((row) => exportRowToCsvCells(row)),
     );
-    const filename = `read-confirmations_${job.scope}_${exportedAtUtc.slice(0, 10)}.csv`;
+    const filename = `read-confirmations_${job.scope}_${dateStamp}.csv`;
 
     return {
       statusCode: 200,

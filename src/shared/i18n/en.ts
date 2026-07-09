@@ -76,6 +76,8 @@ export const en = {
 
   'export.title': 'Export confirmations',
   'export.format': 'Format',
+  'export.format.csv': 'CSV',
+  'export.format.pdf': 'PDF',
   'export.scope': 'Scope',
   'export.scope.page': 'This page',
   'export.scope.space': 'Space',
@@ -86,7 +88,7 @@ export const en = {
   'export.start': 'Export',
   'export.progress': 'Preparing export — fetching records…',
   'export.ready': 'Your export is ready.',
-  'export.download': 'Download CSV',
+  'export.download': 'Download {format}',
   'export.statusFilter': 'Status',
   'export.spaceKey': 'Space key',
 
