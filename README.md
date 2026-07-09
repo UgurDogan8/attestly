@@ -14,6 +14,8 @@ UX flows, test plan, [developer task list](docs/06_developer_task_list.md) T1–
 Custom UI → **UI Kit**, Vitest → **Jest**, and the resulting export-webtrigger design — read it
 first, it overrides `docs/02`/`docs/06` wherever they disagree.
 [`docs/08`](docs/08_test_cases.md) holds Given/When/Then acceptance test cases.
+[`docs/09`](docs/09_deploy_procedure.md)–[`12`](docs/12_marketplace_listing_copy.md) are the T14/T15
+release docs: deploy procedure, security statement, privacy policy, Marketplace listing copy.
 Visual + copy reference: open [`mockups/index.html`](mockups/index.html) in a browser.
 
 ## Layout (docs/07 §2)

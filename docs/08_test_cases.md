@@ -101,5 +101,5 @@
 | TC-H2 | Single-webtrigger guard | PR adds a second webtrigger | CI | Test **fails** ("exactly one export webtrigger"). | Not run |
 | TC-H3 | Install scope prompt matches statement | Fresh install on dev site | Install | Prompted scopes == the five in docs/07 §6 == security statement. | Not run |
 | TC-H4 | Uninstall→reinstall | App reinstalled on dev site | Reopen macro | Fresh setup state, no crash; empty storage (28-day soft delete noted). | Not run |
-| TC-H5 | Free-tier boundary (v1) | Site with >10 users | Paid feature boundary | ≤10-users free boundary enforced in code path (T15); covered by a test. | Not run |
+| TC-H5 | Free-tier boundary (v1) | Marketplace listing pricing tab | Set the 1–10 user tier price | $0 price configured for the 1–10 tier in the Partner Portal; **not app code** — Atlassian bills by the site's licensed tier, app behaves identically at every tier (corrected T15, was wrongly scoped as a code-path test; `docs/01` §5). Manual listing-config check, not a Jest test. | Not run |
 ```

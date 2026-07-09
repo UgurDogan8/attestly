@@ -373,7 +373,8 @@ Same epics/dependencies as `docs/06`; deltas only:
 - **T13 Settings** — admin gate; export-all via §5 site scope.
 - **T14 CI guards** — scope snapshot; **single-webtrigger assertion** (replaces `forge eligibility`).
 - **T15 Listing** — security statement says "no external egress, no write scopes, data stays in
-  Forge" (drop the RoA-badge claim); free ≤10-users boundary in v1 code path + test.
+  Forge" (drop the RoA-badge claim); free ≤10-users boundary is Marketplace-tier billing
+  (Partner Portal $0 price for the 1–10 tier), **not** an in-app code path — see `docs/01` §5.
 
 **v1.1 (unchanged, out of scope now):** reconfirm-on-change UI + page-updated trigger (notify
 only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permissions SDK gate.

@@ -193,12 +193,40 @@ Constraints to respect: Forge Storage value-size and query limits — page-level
 
 ---
 
-## 5. Pricing & packaging (blocked on research — brief §9.1)
+## 5. Pricing & packaging
 
-- Intended model: **Free for ≤10 users**, paid per-user/month above, priced below Appfire/Comala tier.
-- **Blocker:** capture QC / Comala / MiddleCore pricing tiers before setting numbers. Placeholder decision deadline: before Marketplace listing submission.
-- Free tier is a launch requirement (seeding installs/reviews is the GTM strategy), so the paywall boundary must be in the v1 code path.
-- **Cost input:** Forge platform usage pricing is in effect since Jan 2026 (resource usage beyond free quotas is billed — e.g. SQL at GB-hour; KVS/invocation quotas). Project per-install platform cost before setting tiers.
+**Research captured (T15, Jul 2026)** — live Marketplace pricing tabs, via each app's own
+per-user-count estimator:
+
+| App | Vendor | Scope | Free tier | @100 users |
+|---|---|---|---|---|
+| Comala Document Management | Appfire | Full document lifecycle/workflow suite — much broader than read-confirmation alone | Free ≤10 users | USD 237/mo (≈$2.37/user) |
+| Read & Confirm for Confluence | MiddleCore | Same scope as Attestly (macro + dashboard + CSV export + assign users/groups); Forge-native, "Runs on Atlassian" | Free ≤10 users | USD 67/mo (≈$0.67/user) |
+| QC Read and Understood | QC Analytics | Similar narrow scope; Connect-based, no visible free-≤10 tier (10 users already USD 1/mo) | *(none visible)* | USD 33/mo (≈$0.33/user) |
+
+**Recommendation (pending owner sign-off — not yet a final decision):** Free ≤10 users (matches
+both direct comps and the original GTM thesis, brief §6); paid tier priced **at or slightly below
+MiddleCore's ≈$0.67/user/month** (the closest scope match) — e.g. **$0.50/user/month** — which
+comfortably undercuts Comala's suite-level pricing (different product tier, not a fair
+comparison) while still pricing above QC's rock-bottom, no-free-tier utility pricing. This
+directly executes brief §7's "undercut the enterprise incumbent" strategy against the *actual*
+closest competitor rather than the broader-scope one.
+
+**Paywall mechanics — resolved, no code path needed** (was PRD open question #6, corrected here
+per docs/07 §6): Atlassian Marketplace bills Cloud apps by the host product's own licensed
+user-tier band, and vendors set a **price per tier in the Partner Portal**, including a genuine
+$0 price point for the 1–10 tier (Atlassian's own "$0 price point for your 1–10 cloud app user
+tier" feature). Enforcement is Atlassian's, tied to the Confluence site's license tier, not
+Attestly's own user count — the app runs identically at every tier. **T15 does not add an
+in-app user-count gate**; doing so would in fact be wrong, since Atlassian's tier-lock rule bills
+a site at its full Confluence license tier regardless of how many of those users actually touch
+Attestly. See docs/06 T15 and docs/08 TC-H5 for the corresponding correction.
+
+**Cost input (still open):** Forge platform usage pricing (in effect since Jan 2026 — resource
+usage beyond free quotas is billed, e.g. SQL at GB-hour, KVS/invocation quotas) should be
+projected against expected per-install usage before the recommended $/user number above is
+finalized, so the margin at the free ≤10-user tier is understood, not just the top-line price.
+Not done in this pass — flag to the owner alongside the pricing recommendation itself.
 
 ---
 
@@ -235,7 +263,7 @@ Constraints to respect: Forge Storage value-size and query limits — page-level
 3. ~~**PDF export in v1?**~~ — **resolved (Jul 2026):** yes, launch requirement (owner decision) — see F2.
 4. **QC importer** — is QC's data exportable at all? Decide whether "migration" messaging is data-import or just switch-over.
 5. ~~**Voluntary confirmations**~~ — **resolved (Jul 2026):** keep as designed (owner decision) — anyone with view access may confirm; voluntary records shown/exported separately, never in completion % (A4/F1 defaults stand). Interviewees may still be asked as a signal, but nothing blocks on it.
-6. **Paywall mechanics** — how the ≤10-user free tier is enforced (Marketplace pricing handles this via user tiers — verify free-tier listing mechanics).
+6. ~~**Paywall mechanics**~~ — **resolved (T15, Jul 2026):** Marketplace user-tier billing, no in-app enforcement — see §5.
 
 ---
 

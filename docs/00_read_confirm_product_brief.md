@@ -67,10 +67,19 @@ A dead-simple, compliance-grade way to prove employees have **read and acknowled
 3. **QC migration angle** — target QC Read and Understood's orphaned users: "Your read-confirmation app runs on Connect and stops working in 2026. Switch to a Forge-native app in minutes." Build a simple importer if feasible; time messaging to Atlassian's in-product Connect banners.
 4. **Simplicity** — one thing, done cleanly. The buyer who wants *just this* shouldn't have to buy a workflow suite.
 
-## 7. Pricing (research task — see §9)
+## 7. Pricing — research done (T15, Jul 2026); full table + recommendation in `docs/01` §5
 
-- Incumbent pricing not visible without the pricing tab / logged-in view. **First research task:** capture QC and Comala per-user/month tiers.
-- Likely model: **Free ≤10 users**, then per-user/month priced *below* the Appfire/Comala tier (undercut the enterprise incumbent, land the SMB long tail). Atlassian takes ~15%+ revenue share.
+- Captured live from each app's own Marketplace pricing tab (per-user-count estimator): Comala
+  is free ≤10 then ≈$2.37/user/mo at 100 users, but it's a much broader document-workflow suite —
+  not a fair scope comparison. **MiddleCore's Read & Confirm — the closest scope match to this
+  app** — is free ≤10 then ≈$0.67/user/mo at 100 users. QC has no visible free-≤10 tier and sits
+  around $0.10–0.33/user/mo (stale Connect app, near-zero utility pricing, not really competing
+  on the same axis).
+- Recommendation: **Free ≤10 users**, paid tier at or slightly below MiddleCore's ≈$0.67/user
+  (e.g. $0.50/user/mo) — undercuts the true closest competitor rather than the broad-suite one.
+  Atlassian's revenue-share terms changed favorably as of Jan 2026 (100% of gross Forge revenue
+  up to $1M lifetime) — factor that in, not the older ~15%+ assumption. Final number is the
+  owner's call; Forge platform-usage cost projection is still open (`docs/01` §5).
 
 ## 8. Build breakdown for the junior developer
 
@@ -91,7 +100,7 @@ A dead-simple, compliance-grade way to prove employees have **read and acknowled
 
 ## 9. Immediate next steps
 
-1. **Pricing research** (junior dev, ½ day): capture QC + Comala + Read & Confirm pricing tiers from their Marketplace pricing tabs.
+1. ~~**Pricing research**~~ — **done (T15, Jul 2026):** QC + Comala + Read & Confirm tiers captured — see §7 and `docs/01` §5.
 2. **Confirm the 4th competitor** (Read Confirmations for Confluence, app id 1221972) — platform, installs, status.
 3. **Validate the compliance angle** — find 2–3 target users (LinkedIn / r/atlassian / community forums) and confirm they'd pay for audit-ready read confirmations. **Approved (owner decision, Jul 2026)** — run in parallel with M0–M1; kill/pivot checkpoint at M1.
 4. **Forge quickstart** — set up dev account + `forge create` a macro to de-risk the platform.
@@ -102,4 +111,4 @@ A dead-simple, compliance-grade way to prove employees have **read and acknowled
 - **Small category ceiling** — validate demand is real (low installs may reflect weak incumbent marketing, or genuinely niche demand). Step 3 above de-risks this.
 - **MiddleCore's "Read & Confirm"** is a recent Forge entrant doing the modern feature set — a live competitor, though tiny (17 installs). Watch it.
 - **Atlassian could ship this natively** — always a platform risk; the compliance/export depth is the defensible layer.
-- **Pricing unknown** until §9.1 done.
+- ~~**Pricing unknown**~~ — resolved, §9.1 done; see §7.

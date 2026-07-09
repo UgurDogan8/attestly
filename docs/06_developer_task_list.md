@@ -81,8 +81,18 @@ Scope snapshot test (a PR changing manifest scopes must consciously update the s
 **Accept:** adding a scope or webtrigger in a test branch fails CI with a clear message.
 
 ### T15 · Marketplace listing preparation — 5d *(depends: T10, T11, T12, T13, T14)*
-Security statement (no egress, no write scopes, storage:app only, Runs on Atlassian); privacy policy per data model §5 (accountId retention as compliance evidence, `[deleted user]` rendering, uninstall retention, residency); listing assets (screenshots of the real app, EN copy); **resolve the pricing blocker** (PRD §5: capture QC / Comala / MiddleCore tiers + Forge consumption-cost projection per install); implement the free ≤10 users boundary in the v1 code path; submit.
-**Accept:** listing passes Atlassian review checklist; paywall boundary covered by a test; pricing decision recorded in PRD §5.
+Security statement (no egress, no write scopes, storage:app only — **not** Runs on Atlassian,
+dropped per T14/docs/07 §6); privacy policy per data model §5 (accountId retention as compliance
+evidence, `[deleted user]` rendering, uninstall retention, residency); listing assets (screenshots
+of the real app, EN copy); **resolve the pricing blocker** (PRD §5: captured QC / Comala /
+MiddleCore tiers + a recommendation; Forge consumption-cost projection per install still open);
+submit.
+**Accept:** listing passes Atlassian review checklist; pricing decision recorded in PRD §5.
+**Corrected (T15, Jul 2026):** the free ≤10-users boundary is **not** an in-app code path —
+Atlassian Marketplace bills by the host product's licensed user-tier band, with vendors setting a
+genuine $0 price for the 1–10 tier in the Partner Portal; the app runs identically at every tier.
+An in-app user-count gate would be actively wrong (tier-lock bills a site at its full Confluence
+license tier regardless of how many users touch this app). See `docs/01` §5 and `docs/08` TC-H5.
 
 ---
 
