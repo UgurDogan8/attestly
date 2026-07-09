@@ -14,10 +14,20 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
-      - run: npm test -- --passWithNoTests
-      - run: npm run build          # static/app → build/ (forge deploy uploads, never builds)
+      # No separate build step: UI Kit resources (src/frontend/*.tsx) are
+      # bundled directly by the Forge CLI at deploy time — there is no Vite/
+      # static/app step to run here (docs/07 §1, §3).
+      - run: npm test
       - name: forge lint
         run: npx -y @forge/cli@latest lint
-      # TODO(T1): staging deploy on main merge (needs FORGE_EMAIL/FORGE_API_TOKEN secrets)
-      # TODO(T14): scope snapshot test + `forge eligibility` gate (Runs on Atlassian)
+      # TODO(T3+): switch `npm test` to `npm run test:coverage` once the
+      # domain layer has real logic — the coverage gate in jest.config.js
+      # (domain 95% branches, overall 80% lines, docs/07 §7) is meaningless
+      # against T1's stubs and would fail every PR for the wrong reason.
+      # TODO(T1, before first deploy): staging deploy on main merge (needs
+      # FORGE_EMAIL/FORGE_API_TOKEN secrets).
+      # TODO(T14): manifest scope-snapshot test; single-webtrigger guard
+      # (replaces the reference's `forge eligibility` RoA gate — this app
+      # knowingly ships one webtrigger, see manifest.yml and docs/07 §1/§6).

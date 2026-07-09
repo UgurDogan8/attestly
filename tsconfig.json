@@ -3,10 +3,12 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
+    "jsx": "react-jsx",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "resolveJsonModule": true,
+    "types": ["node", "jest"]
   },
   "include": ["src"]
 }

@@ -1,26 +1,29 @@
 {
-  "name": "acknowledge-for-confluence",
+  "name": "attestly",
   "version": "0.1.0",
   "private": true,
-  "description": "Read Confirmation app for Confluence Cloud (Forge)",
-  "workspaces": [
-    "packages/shared",
-    "static/app"
-  ],
+  "description": "Read confirmation / acknowledgement tracking for Confluence Cloud (Forge, UI Kit)",
   "scripts": {
-    "build": "npm run build -w static/app",
-    "typecheck": "tsc --noEmit && npm run typecheck -w packages/shared -w static/app",
-    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src",
     "lint:forge": "forge lint"
   },
   "dependencies": {
-    "@forge/api": "^8.0.0",
-    "@forge/kvs": "^1.0.0",
-    "@forge/resolver": "^1.6.0"
+    "@forge/api": "^8.0.1",
+    "@forge/bridge": "^6.1.0",
+    "@forge/kvs": "^2.0.1",
+    "@forge/react": "^12.0.1",
+    "@forge/resolver": "^2.0.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^3.0.0"
+    "eslint": "^10.6.0",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.63.0"
   }
 }

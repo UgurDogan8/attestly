@@ -7,7 +7,7 @@
  *
  * TODO(T3): implement computeStatus + % complete per data model §3.
  */
-import type { UserStatus } from '@acknowledge/shared';
+import type { UserStatus } from '../shared';
 
 export interface StatusInput {
   /** Confirmation record versions for (user, page), if any. */

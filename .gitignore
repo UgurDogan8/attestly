@@ -50,5 +50,5 @@ Thumbs.db
 
 *.env
 
-# Vite build output (built in CI, uploaded by forge deploy)
-static/app/build/
+# Jest coverage output
+coverage/

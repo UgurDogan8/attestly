@@ -1,5 +1,5 @@
 import type Resolver from '@forge/resolver';
-import { err } from '@acknowledge/shared';
+import { err } from '../shared';
 
 /**
  * Thin request handlers only — business logic lives in src/domain (tech
