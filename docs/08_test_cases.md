@@ -1,4 +1,4 @@
-# Test Cases 1.0.0 — Read Confirmation (Acknowledge for Confluence)
+# Test Cases 1.0.0 — Read Confirmation (Attestly)
 
 > Format matches the company Test Cases sheet: personas first, then Given/When/Then acceptance
 > cases with a Status column. These are **acceptance/manual + integration** cases; the exhaustive

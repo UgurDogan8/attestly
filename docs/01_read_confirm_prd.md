@@ -1,6 +1,6 @@
 # PRD: Confluence Read Confirmation / Policy Acknowledgement App
 
-> **Name:** "Acknowledge" — **decided** (owner, Jul 2026). Marketplace collision check clean; formal trademark check before listing submission.
+> **Name:** "Attestly" — **decided** (owner, Jul 2026; renamed from the earlier "Acknowledge" working name). Marketplace collision check clean; formal trademark check before listing submission.
 > **Status:** Draft v0.1 · July 2026
 > **Source:** [00_read_confirm_product_brief.md](./00_read_confirm_product_brief.md)
 > **Platform:** Atlassian Forge · Confluence Cloud
@@ -258,7 +258,7 @@ Not done in this pass — flag to the owner alongside the pricing recommendation
 
 ## 8. Open questions (owner: product / to resolve by M0 exit)
 
-1. ~~**Name**~~ — **resolved (Jul 2026):** "Acknowledge" (owner decision; Marketplace collision check clean, trademark check before listing).
+1. ~~**Name**~~ — **resolved (Jul 2026):** "Attestly" (owner decision; renamed from the earlier "Acknowledge" working name; Marketplace collision check clean, trademark check before listing).
 2. **Reminder channel** — what can Forge send natively (email via Confluence notifications? in-app only?) without external egress that would complicate the security story?
 3. ~~**PDF export in v1?**~~ — **resolved (Jul 2026):** yes, launch requirement (owner decision) — see F2.
 4. **QC importer** — is QC's data exportable at all? Decide whether "migration" messaging is data-import or just switch-over.

@@ -1,6 +1,6 @@
 # Product Brief: Confluence Read Confirmation / Policy Acknowledgement App
 
-> **Name:** "Acknowledge" — decided Jul 2026 (Marketplace collision check clean).
+> **Name:** "Attestly" — decided Jul 2026 (renamed from the earlier "Acknowledge" working name; Marketplace collision check clean).
 > **Platform:** Atlassian Forge (Confluence Cloud) — required for all new apps.
 > **Prepared:** July 2026 · Based on live Atlassian Marketplace research.
 > **Document set:** [PRD](./01_read_confirm_prd.md) · [Tech design](./02_read_confirm_tech_design.md) · [Data model](./03_read_confirm_data_model.md) · [UX flows](./04_read_confirm_ux_flows.md) · [Test plan](./05_read_confirm_test_plan.md)
