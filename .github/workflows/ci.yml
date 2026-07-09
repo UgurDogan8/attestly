@@ -19,13 +19,13 @@ jobs:
       # No separate build step: UI Kit resources (src/frontend/*.tsx) are
       # bundled directly by the Forge CLI at deploy time — there is no Vite/
       # static/app step to run here (docs/07 §1, §3).
-      - run: npm test
+      - run: npm run test:coverage
       - name: forge lint
         run: npx -y @forge/cli@latest lint
-      # TODO(T3+): switch `npm test` to `npm run test:coverage` once the
-      # domain layer has real logic — the coverage gate in jest.config.js
-      # (domain 95% branches, overall 80% lines, docs/07 §7) is meaningless
-      # against T1's stubs and would fail every PR for the wrong reason.
+      # Coverage gate (jest.config.js: domain 95% branches, overall 80%
+      # lines, docs/07 §7) now enforced -- T2/T3/T4 pushed real coverage past
+      # both thresholds. If a later task's stub work dips it, fix coverage in
+      # the same PR rather than reverting to plain `npm test`.
       # TODO(T1, before first deploy): staging deploy on main merge (needs
       # FORGE_EMAIL/FORGE_API_TOKEN secrets).
       # TODO(T14): manifest scope-snapshot test; single-webtrigger guard
