@@ -1,5 +1,5 @@
 /**
- * The typed invoke contract between static/app (frontend) and src/ (resolvers).
+ * The typed invoke contract between src/frontend (UI Kit) and src/resolvers.
  * Extend per resolver in T4/T9–T13; keep payloads JSON-serializable.
  */
 
