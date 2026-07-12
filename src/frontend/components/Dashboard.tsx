@@ -19,7 +19,7 @@ import {
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { formatLocalDate } from './formatLocalDateTime';
-import { ExportDialog } from './ExportDialog';
+import { openExportPage } from './exportNavigation';
 import type { GetDashboardPayload, GetDashboardResponse, DashboardRow, StatusFilter } from '../../shared';
 
 /**
@@ -59,7 +59,6 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   const [forbidden, setForbidden] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
 
   const spaceFilterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -204,7 +203,7 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
     <Stack space="space.200">
       <Inline space="space.200" alignBlock="center" spread="space-between">
         <Heading size="medium">{t('dashboard.title')}</Heading>
-        <Button onClick={() => setExportOpen(true)}>{t('dashboard.export')}</Button>
+        <Button onClick={() => openExportPage({ spaceKey: spaceKeyInput || undefined })}>{t('dashboard.export')}</Button>
       </Inline>
 
       <Inline space="space.200" alignBlock="center">
@@ -241,8 +240,6 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
           </LoadingButton>
         </Box>
       ) : null}
-
-      {exportOpen ? <ExportDialog onClose={() => setExportOpen(false)} defaultSpaceKey={spaceKeyInput} /> : null}
     </Stack>
   );
 }

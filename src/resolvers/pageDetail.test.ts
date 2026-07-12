@@ -31,7 +31,7 @@ import { saveSettings } from '../storage/settings';
 import { writeConfirmation } from '../storage/confirmations';
 import { appendAuditEntry } from '../storage/audit';
 import { getPageDetail, getPageHistory } from './pageDetail';
-import type { DetailUserRow } from '../shared';
+import type { DetailUserRow, GetPageHistoryResponse } from '../shared';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
 const fakeApi = apiFake as unknown as FakeForgeApi;
@@ -304,14 +304,55 @@ describe('getPageHistory (data model §2.4 — History tab)', () => {
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 
-  it('TC-D8: returns config-audit entries for the page, most recent first', async () => {
+  it('TC-D8: returns diffed, name-resolved config-audit entries for the page, most recent first', async () => {
     await asManager();
-    await appendAuditEntry(anAuditEntry({ pageId: 'page-1', at: '2026-07-01T00:00:00.000Z', actor: 'acc-admin', entry: { action: 'created' } }));
-    await appendAuditEntry(anAuditEntry({ pageId: 'page-1', at: '2026-07-05T00:00:00.000Z', actor: 'acc-admin', entry: { action: 'updated' } }));
-    fakeApi.setHandler(() => jsonResponse(200, { results: [{ id: 'managers' }] }));
+    await appendAuditEntry(
+      anAuditEntry({
+        pageId: 'page-1',
+        at: '2026-07-01T00:00:00.000Z',
+        actor: 'acc-admin',
+        entry: { action: 'created', before: null, after: { assignedUsers: ['acc-1'], assignedGroups: [], dueDate: null } },
+      }),
+    );
+    await appendAuditEntry(
+      anAuditEntry({
+        pageId: 'page-1',
+        at: '2026-07-05T00:00:00.000Z',
+        actor: 'acc-admin',
+        entry: {
+          action: 'updated',
+          before: { assignedUsers: ['acc-1'], assignedGroups: [], dueDate: null },
+          after: { assignedUsers: ['acc-1', 'acc-2'], assignedGroups: ['g1'], dueDate: '2026-08-01' },
+        },
+      }),
+    );
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
+      if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'g1', name: 'Security All' });
+      if (url.includes('accountId=acc-admin')) return jsonResponse(200, { displayName: 'Jane Admin' });
+      if (url.includes('accountId=acc-2')) return jsonResponse(200, { displayName: 'Ayşe Yılmaz' });
+      return jsonResponse(404, {});
+    });
 
     const result = await getPageHistory({ pageId: 'page-1' }, 'acc-viewer');
-    const data = (result as { ok: true; data: { entries: { entry: Record<string, unknown> }[] } }).data;
-    expect(data.entries.map((e) => e.entry.action)).toEqual(['updated', 'created']);
+    const data = (result as { ok: true; data: GetPageHistoryResponse }).data;
+
+    expect(data.entries).toHaveLength(2);
+    // Most recent first (the "updated" entry).
+    expect(data.entries[0]).toEqual({
+      at: '2026-07-05T00:00:00.000Z',
+      actorName: 'Jane Admin',
+      changes: expect.arrayContaining([
+        { kind: 'assigned', subjectType: 'user', subjectName: 'Ayşe Yılmaz' },
+        { kind: 'assigned', subjectType: 'group', subjectName: 'Security All' },
+        { kind: 'dueDate', dueDate: '2026-08-01' },
+      ]),
+    });
+    expect(data.entries[1]).toEqual({
+      at: '2026-07-01T00:00:00.000Z',
+      actorName: 'Jane Admin',
+      // acc-1 has no mock — falls back to the same "unresolvable" label the export CSV uses.
+      changes: [{ kind: 'assigned', subjectType: 'user', subjectName: '[deleted user]' }],
+    });
   });
 });

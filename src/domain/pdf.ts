@@ -1,8 +1,9 @@
 /**
  * Minimal, dependency-free PDF builder (T12, docs/07 §5/§8: "server-side
  * `domain/pdf.ts`" — UI Kit has no DOM/canvas, so the reference's
- * client-side PDF generation is impossible here; a webtrigger renders it
- * instead). Writes raw PDF 1.4 bytes directly (objects, xref, trailer) —
+ * client-side PDF generation is impossible here; the `exportFile` resolver
+ * builds it instead, returned to the Custom UI export surface as base64 for
+ * a browser download). Writes raw PDF 1.4 bytes directly (objects, xref, trailer) —
  * no third-party PDF library, which keeps this pure, keeps the "no
  * external egress" claim trivially true (nothing to fetch fonts/assets
  * from), and avoids bundling a heavy dependency into a Forge function.
@@ -62,7 +63,7 @@ const COLUMNS: Column[] = [
   { header: 'STATUS', width: 12, get: (r) => r.status },
   // 25, not 20: an ISO 8601 timestamp with milliseconds ("2026-07-05T00:00:00.000Z")
   // is 24 characters -- a narrower column silently truncated the seconds/Z off
-  // real timestamps, caught by the CSV/PDF record-parity test (webtriggers/export.test.ts).
+  // real timestamps, caught by the CSV/PDF record-parity test (resolvers/export.test.ts).
   { header: 'CONFIRMED AT (UTC)', width: 25, get: (r) => r.confirmedAtUtc ?? '' },
   { header: 'DUE DATE', width: 10, get: (r) => r.dueDate ?? '' },
 ];

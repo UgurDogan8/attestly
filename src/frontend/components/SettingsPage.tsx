@@ -18,7 +18,7 @@ import {
 } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
-import { ExportDialog } from './ExportDialog';
+import { openExportPage } from './exportNavigation';
 import type {
   GetSettingsPayload,
   GetSettingsResponse,
@@ -32,8 +32,9 @@ import type {
  * group picker, defaults (reconfirm — locked in v1, same disabled+Lozenge
  * treatment as ConfigModal.tsx's per-page toggle, for the same reason:
  * nothing in v1 reads a *different* default for new configs yet), export
- * all data (reuses ExportDialog verbatim — its own default scope is
- * already "site"), and the 28-day/21-day data-lifecycle notice.
+ * all data (opens the Custom UI export surface via `openExportPage()` with
+ * no scope override — that surface's own default scope is "site"), and the
+ * 28-day/21-day data-lifecycle notice.
  *
  * Gated on isConfluenceAdmin alone (resolvers/settings.ts) — a compliance
  * manager who isn't a Confluence admin reaches the dashboard but not this
@@ -67,7 +68,6 @@ export function SettingsPage(): React.JSX.Element {
   const [groupSearchOptions, setGroupSearchOptions] = useState<GroupSelectOption[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
 
   const groupSearchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -205,15 +205,13 @@ export function SettingsPage(): React.JSX.Element {
         <Text>{t('settings.exportAll')}</Text>
         <HelperMessage>{t('settings.exportAll.hint')}</HelperMessage>
         <Box>
-          <Button onClick={() => setExportOpen(true)}>{t('settings.exportAll')}</Button>
+          <Button onClick={() => openExportPage()}>{t('settings.exportAll')}</Button>
         </Box>
       </Stack>
 
       <SectionMessage appearance="information" title={t('settings.lifecycle.title')}>
         <Text>{t('settings.lifecycle.body')}</Text>
       </SectionMessage>
-
-      {exportOpen ? <ExportDialog onClose={() => setExportOpen(false)} /> : null}
     </Stack>
   );
 }

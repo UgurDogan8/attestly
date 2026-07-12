@@ -73,16 +73,16 @@
 | TC-E3 | Empty assignment ⇒ voluntary | Config with no users/groups | Save | Voluntary-only notice; all viewers see R5. | Not run |
 | TC-E4 | Group nudge past 50 direct users | 51 direct users added | In modal | Hint to prefer groups (data model §2.2). | Not run |
 
-## F — Export (webtrigger, visibility-safe — docs/07 §5)
+## F — Export (Custom UI + `exportFile` resolver, visibility-safe — docs/07 §5, revised post-PR-review)
 
 | ID | User Story | Given | When | Then | Status |
 |---|---|---|---|---|---|
-| TC-F1 | CSV export happy path | **Admin A**, scope = site | Export dialog → CSV | File downloads; UTF-8 BOM; exact column order (docs/03 §4); outstanding rows have empty confirmation fields; opens in Excel (Turkish locale). | Not run |
+| TC-F1 | CSV export happy path | **Admin A**, scope = site | Export page → CSV | File downloads via the Custom UI surface; UTF-8 BOM; exact column order (docs/03 §4); outstanding rows have empty confirmation fields; opens in Excel (Turkish locale). | Not run |
 | TC-F2 | Row-count law | Seeded: X assigned across pages + Y voluntary | Export | Row count = assigned×pages(in scope) + voluntary records. | Not run |
 | TC-F3 | PDF parity | Same scope as TC-F1 | Export → PDF | PDF parses; **same records/statuses/timestamps** as the CSV; report header (scope, exported_at_utc, app version); Turkish chars intact. | Not run |
-| TC-F4 | Export honors visibility | **Manager C** cannot view **Q** | Export site scope | **Q not in file** (visibility filtered under asUser before the webtrigger runs). | Not run |
-| TC-F5 | Webtrigger rejects no/invalid secret | Export URL captured | GET without `k` / wrong `k` | **403**, no data. | Not run |
-| TC-F6 | One-time / TTL token | Valid export URL used once | Reuse same URL / use after TTL | **410 Gone**; job deleted after first serve. | Not run |
+| TC-F4 | Export honors visibility | **Manager C** cannot view **Q** | Export site scope | **Q not in file** (visibility filtered under `asUser` inside the `exportFile` resolver — same guarantee as before, no separate endpoint anymore). | Not run |
+| TC-F5 | Export is role-gated | Non-manager account | Opens the export page and starts an export | `exportFile` returns FORBIDDEN, no data. | Not run |
+| TC-F6 | >100-page site export (PR review regression) | 150+ tracked pages, all viewer-visible | Export site scope | **Every page's rows are present**, including those past the 100th — `resolvePageVisibility` chunks its bulk read (`src/resolvers/dashboard.ts`) instead of silently dropping the overflow as restricted. | Not run |
 | TC-F7 | 10k records, no timeout | Seeded 10k confirmations | Export | Completes without invocation timeout; single header; ordered. | Not run |
 
 ## G — Deleted content, users, immutability (docs/03 §7)
@@ -98,7 +98,7 @@
 | ID | User Story | Given | When | Then | Status |
 |---|---|---|---|---|---|
 | TC-H1 | Scope snapshot | PR adds a scope | CI | Scope-snapshot test **fails** until snapshot consciously updated. | Not run |
-| TC-H2 | Single-webtrigger guard | PR adds a second webtrigger | CI | Test **fails** ("exactly one export webtrigger"). | Not run |
+| TC-H2 | Zero-webtrigger guard | PR adds any webtrigger | CI | Test **fails** — this app has none by design, revised post-PR-review (docs/07 §5). | Not run |
 | TC-H3 | Install scope prompt matches statement | Fresh install on dev site | Install | Prompted scopes == the five in docs/07 §6 == security statement. | Not run |
 | TC-H4 | Uninstall→reinstall | App reinstalled on dev site | Reopen macro | Fresh setup state, no crash; empty storage (28-day soft delete noted). | Not run |
 | TC-H5 | Free-tier boundary (v1) | Marketplace listing pricing tab | Set the 1–10 user tier price | $0 price configured for the 1–10 tier in the Partner Portal; **not app code** — Atlassian bills by the site's licensed tier, app behaves identically at every tier (corrected T15, was wrongly scoped as a code-path test; `docs/01` §5). Manual listing-config check, not a Jest test. | Not run |

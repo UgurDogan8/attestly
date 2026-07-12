@@ -53,28 +53,52 @@ interface BulkPagesResponse {
 /** Confluence v2 pages GET's own page cap; matches this app's own MAX_PAGE_SIZE chunking. */
 const BULK_FETCH_LIMIT = 100;
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+/**
+ * Bug fix (PR review, T11 export): a single un-chunked request here silently
+ * capped at `BULK_FETCH_LIMIT` results — callers passing more than 100 ids
+ * (site/space export via `drainTrackedPages`) got every id beyond the first
+ * page misread as "missing from the bulk response" and, since the existence
+ * probe below fails closed to `restricted` on any non-404 status, a real,
+ * viewable page got silently dropped rather than exported. The dashboard
+ * itself never hit this (it only ever passes one KVS page's worth of ids,
+ * already ≤ `MAX_PAGE_SIZE` = `BULK_FETCH_LIMIT`), which is why no test
+ * caught it. One bulk request per `BULK_FETCH_LIMIT`-sized batch fixes every
+ * caller from this one shared place.
+ */
 export async function resolvePageVisibility(pageIds: string[]): Promise<Map<string, PageVisibility>> {
   const result = new Map<string, PageVisibility>();
   if (pageIds.length === 0) {
     return result;
   }
 
-  try {
-    const idsParam = pageIds.join(',');
-    const response = await api
-      .asUser()
-      .requestConfluence(route`/wiki/api/v2/pages?id=${idsParam}&limit=${BULK_FETCH_LIMIT}`, {
-        headers: { Accept: 'application/json' },
-      });
-    if (response.ok) {
-      const body = (await response.json()) as BulkPagesResponse;
-      for (const page of body.results ?? []) {
-        result.set(page.id, { kind: 'visible', title: page.title, version: page.version?.number });
+  await Promise.all(
+    chunk(pageIds, BULK_FETCH_LIMIT).map(async (batch) => {
+      try {
+        const idsParam = batch.join(',');
+        const response = await api
+          .asUser()
+          .requestConfluence(route`/wiki/api/v2/pages?id=${idsParam}&limit=${BULK_FETCH_LIMIT}`, {
+            headers: { Accept: 'application/json' },
+          });
+        if (response.ok) {
+          const body = (await response.json()) as BulkPagesResponse;
+          for (const page of body.results ?? []) {
+            result.set(page.id, { kind: 'visible', title: page.title, version: page.version?.number });
+          }
+        }
+      } catch {
+        // Every id in this batch falls through to the existence probe below.
       }
-    }
-  } catch {
-    // Every id falls through to the existence probe below.
-  }
+    }),
+  );
 
   const missing = pageIds.filter((id) => !result.has(id));
   await Promise.all(

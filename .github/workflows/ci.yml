@@ -16,9 +16,16 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      # No separate build step: UI Kit resources (src/frontend/*.tsx) are
-      # bundled directly by the Forge CLI at deploy time — there is no Vite/
-      # static/app step to run here (docs/07 §1, §3).
+      # UI Kit resources (src/frontend/*.tsx) are still bundled directly by
+      # the Forge CLI at deploy time, no build step needed for those (docs/07
+      # §1, §3). The one exception, post-PR-review (docs/07 §5): the Custom
+      # UI export surface needs a real Vite build before `forge lint`/deploy
+      # can see its resource output — forge lint fails with "missing
+      # resource" otherwise (src/release/manifest.test.ts's TC-H2 doesn't
+      # catch this; only forge lint does).
+      - run: npm ci --prefix static/export-ui
+      - run: npm run build --prefix static/export-ui
+      - run: npm run typecheck --prefix static/export-ui
       - run: npm run test:coverage
       - name: forge lint
         run: npx -y @forge/cli@latest lint
@@ -28,9 +35,11 @@ jobs:
       # the same PR rather than reverting to plain `npm test`.
       #
       # T14 release guards, enforced above via `npm run test:coverage`:
-      # - src/release/manifest.test.ts — scope snapshot (TC-H1) + single-
+      # - src/release/manifest.test.ts — scope snapshot (TC-H1) + zero-
       #   webtrigger assertion (TC-H2), replacing the reference's `forge
-      #   eligibility` RoA gate (docs/07 §6, dropped on purpose).
+      #   eligibility` RoA gate. The badge itself is no longer forfeited
+      #   post-PR-review (docs/07 §5/§6): there is no webtrigger left to
+      #   trade it away for.
       # See docs/09_deploy_procedure.md for the staging→production procedure
       # and the (still manual, not yet a CI job) deploy commands.
       # TODO(T1, before first deploy): staging deploy on main merge (needs

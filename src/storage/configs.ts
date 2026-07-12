@@ -1,6 +1,8 @@
 import kvs, { WhereConditions } from '@forge/kvs';
-import { ENTITY, pageConfigKey } from './entities';
+import { randomUUID } from 'node:crypto';
+import { ENTITY, pageConfigKey, configAuditKey } from './entities';
 import { drainPages, MAX_PAGE_SIZE, type CursorPage } from './pagination';
+import type { ConfigAuditRecord } from './audit';
 
 /** data model §2.2 — mutable, unlike `confirmation`. */
 export interface PageConfigCounters {
@@ -40,6 +42,21 @@ export async function getPageConfig(pageId: string): Promise<PageConfigRecord | 
  */
 export async function savePageConfig(config: PageConfigRecord): Promise<void> {
   await kvs.entity<PageConfigRecord>(ENTITY.pageConfig).set(pageConfigKey(config.pageId), config);
+}
+
+/**
+ * `saveConfig` + its `config-audit` entry in one KVS transaction (data model
+ * §2.4: "without this, assignment changes silently rewrite history" — a
+ * config write that succeeds while its audit write throws would do exactly
+ * that). Same pattern as storage/confirmations.ts's writeConfirmation
+ * transaction. `audit.at`/nonce must already be set by the caller — this
+ * function only persists, it doesn't generate identity.
+ */
+export async function saveConfigWithAudit(config: PageConfigRecord, audit: ConfigAuditRecord): Promise<void> {
+  const tx = kvs.transact();
+  tx.set(pageConfigKey(config.pageId), config, { entityName: ENTITY.pageConfig });
+  tx.set(configAuditKey(audit.pageId, audit.at, randomUUID()), audit, { entityName: ENTITY.configAudit });
+  await tx.execute();
 }
 
 /**

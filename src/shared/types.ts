@@ -211,10 +211,22 @@ export interface GetPageHistoryPayload {
   cursor?: string;
 }
 
+/**
+ * Already resolved to display names server-side (resolvers/pageDetail.ts) —
+ * this component only renders what it's given (same rule as the rest of
+ * PageDetail, see that file's docstring). `dueDate` stays a raw ISO date
+ * (never pre-formatted) so the client can render it in the viewer's own
+ * locale, same as every other date in this app.
+ */
+export type HistoryChangeView =
+  | { kind: 'assigned'; subjectType: 'user' | 'group'; subjectName: string }
+  | { kind: 'removed'; subjectType: 'user' | 'group'; subjectName: string }
+  | { kind: 'dueDate'; dueDate: string | null };
+
 export interface HistoryEntryView {
   at: string;
-  actor: string;
-  entry: Record<string, unknown>;
+  actorName: string;
+  changes: HistoryChangeView[];
 }
 
 export interface GetPageHistoryResponse {
@@ -223,15 +235,19 @@ export interface GetPageHistoryResponse {
 }
 
 /**
- * startExport (T11/T12 — docs/07 §5, data model §4). `format` selects which
- * serializer the export webtrigger uses over the exact same rows (docs/07
- * §5: "CSV + PDF come from the same export.ts rows -> record parity
- * guaranteed") — no separate resolver or job shape per format.
+ * exportFile (T11/T12, revised post-PR-review — docs/07 §5). `format`
+ * selects which serializer runs over the exact same rows (docs/07 §5: "CSV +
+ * PDF come from the same export.ts rows -> record parity guaranteed") — no
+ * separate resolver or job shape per format. Called from the Custom UI
+ * export surface (`static/export-ui/`) via a normal `invoke()` — there is no
+ * webtrigger, token, or job record anymore: the file comes back directly in
+ * the resolver response, and the Custom UI page turns it into a browser
+ * download (UI Kit can't; that's the one thing this surface exists for).
  */
 export type ExportFormat = 'csv' | 'pdf';
 export type ExportScope = 'page' | 'space' | 'site';
 
-export interface StartExportPayload {
+export interface ExportFilePayload {
   format: ExportFormat;
   scope: ExportScope;
   /** pageId when scope="page", spaceKey when scope="space"; omitted when scope="site". */
@@ -248,9 +264,10 @@ export interface StartExportPayload {
   dateTo?: string;
 }
 
-export interface StartExportResponse {
-  url: string;
-}
+/** `csv` is plain UTF-8 text (already BOM-prefixed, domain/csv.ts); `pdf` is base64 — the only one of the two that's binary. */
+export type ExportFileResponse =
+  | { format: 'csv'; filename: string; csv: string }
+  | { format: 'pdf'; filename: string; base64: string };
 
 /**
  * getSettings / saveSettings (T13, docs/04 §3.5, data model §2.3). Gated on

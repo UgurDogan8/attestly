@@ -412,7 +412,7 @@ describe('getGroupMemberAccountIds (T10 — reverse of getCurrentUserGroupIds, s
     expect(fakeApi.lastTier).toBe('user');
   });
 
-  it('T11: passing tier "app" calls asApp (webtriggers have no user session)', async () => {
+  it('passing tier "app" calls asApp (the caller decides, this helper just dispatches)', async () => {
     fakeApi.setHandler(() => jsonResponse(200, { results: [{ accountId: 'acc-1' }] }));
     const result = await getGroupMemberAccountIds('g1', 'app');
     expect(fakeApi.lastTier).toBe('app');

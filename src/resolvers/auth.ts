@@ -280,10 +280,10 @@ interface MembersByGroupIdResponse {
 }
 
 /**
- * Which tier calls a helper below: `'user'` for resolver contexts
- * (asUser() — server-authoritative, current user), `'app'` for webtrigger
- * contexts (T11 export — asUser() fails outside UI-invoked calls, tech
- * design §4). Group membership and user-display-name lookups aren't
+ * Which tier calls a helper below: `'user'` for the current viewer
+ * (asUser() — server-authoritative), `'app'` for questions about an *other*
+ * user that the current viewer's own session can't answer (tech design §4's
+ * tier-3 exception). Group membership and user-display-name lookups aren't
  * viewer-permission-sensitive the way page content is (both endpoints only
  * require basic product access, which the app's own scopes already grant),
  * so the same call works under either tier — this selects which one.
@@ -306,8 +306,8 @@ function apiFor(tier: ApiTier) {
  * Best-effort: a group that fails to resolve (e.g. deleted) simply
  * contributes zero members rather than failing the whole drill-down — see
  * data model's degraded-states table ("group deleted -> members no longer
- * counted"). `tier` defaults to `'user'` (T10's own call sites, unchanged);
- * T11's export webtrigger passes `'app'` since it has no user session.
+ * counted"). `tier` defaults to `'user'` (T10 and T11's export resolver
+ * both call this from a normal `asUser`-invoked context).
  */
 export async function getGroupMemberAccountIds(groupId: string, tier: ApiTier = 'user'): Promise<string[]> {
   const accountIds: string[] = [];
@@ -392,8 +392,10 @@ interface UserResponse {
  * (unknown/erased accountId, same pattern as checkViewPermission's tier-3
  * probe) and any other failure both collapse to `[deleted user]` — the
  * safer of the two labels data model §4 defines, never a crash or a blank
- * cell. Runs under whichever tier the caller is in (T11's webtrigger has no
- * user session, so it passes `'app'`).
+ * cell. Runs under whichever tier the caller passes — T10's drill-down and
+ * T11's export resolver both pass `'user'` (normal `asUser`-invoked
+ * contexts); `pageDetail.ts`'s History-tab actor/subject name resolution
+ * does the same.
  */
 export async function resolveUserDisplayName(accountId: string, tier: ApiTier): Promise<string> {
   try {

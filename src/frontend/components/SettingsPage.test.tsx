@@ -7,12 +7,14 @@ import { SettingsPage } from './SettingsPage';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
+  router: { navigate: jest.fn() },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
+  router: { navigate: jest.Mock };
 };
 
 function extractText(node: unknown): string {
@@ -168,15 +170,14 @@ describe('SettingsPage — save', () => {
   });
 });
 
-describe('SettingsPage — export all data', () => {
-  it('clicking Export all data opens the export dialog', async () => {
+describe('SettingsPage — export all data (revised post-PR-review to the Custom UI export surface)', () => {
+  it('clicking Export all data navigates to the export page, site-scoped', async () => {
     bridge.invoke.mockResolvedValue({ ok: true, data: settingsData() });
     const renderer = await mount();
 
-    expect(extractText(renderer.toJSON())).not.toContain('Export confirmations');
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
     });
-    expect(extractText(renderer.toJSON())).toContain('Export confirmations');
+    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export');
   });
 });

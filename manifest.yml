@@ -30,6 +30,23 @@ modules:
       title: Read confirmations
       resolver:
         function: resolver
+    - key: acknowledge-export # T11/T12, revised post-PR-review (docs/07 §5)
+      # The ONLY Custom UI surface in this app (no `render: native`) — the
+      # single deliberate exception to "UI Kit only, no build step"
+      # (README.md). It exists purely because UI Kit has no Blob/DOM
+      # download API: everything else (role gate, viewer-visibility
+      # filtering, row building, CSV/PDF byte assembly) still happens
+      # entirely server-side in the same `resolver` function this app
+      # already uses everywhere else (src/resolvers/export.ts's `exportFile`
+      # resolver) — this page's only job is to call it via invoke() and turn
+      # the returned bytes into a browser download. There is no webtrigger
+      # anywhere in this app: no token, no shared secret, no separate
+      # download URL to guard, leak, or replay.
+      resource: export-ui
+      route: read-confirmations-export
+      title: Export read confirmations
+      resolver:
+        function: resolver
   confluence:globalSettings:
     - key: acknowledge-settings # Epic G — app settings (T13)
       resource: settings
@@ -37,27 +54,9 @@ modules:
       title: Read Confirmation
       resolver:
         function: resolver
-  webtrigger:
-    # The ONLY webtrigger in this app — UI Kit cannot trigger a browser
-    # download itself, so file export needs one real HTTPS endpoint (docs/07
-    # §5). It is token+secret guarded and only ever serves pages a prior
-    # asUser() call already confirmed are visible to the requesting user —
-    # never a permission bypass. Accepted trade-off: this alone forfeits the
-    # "Runs on Atlassian" program badge, but NOT the "no external egress"
-    # claim (a webtrigger is inbound only; the app still calls no third
-    # party). See docs/07 §1 and §5 for the full reasoning.
-    - key: export-trigger
-      function: exportTrigger
-      # TODO(T11, before first deploy, per environment): run
-      # `forge variables set --encrypt EXPORT_SECRET <random-value>` -- the
-      # webtrigger 403s without it (src/webtriggers/export.ts). Never commit
-      # the value; it's the shared secret the export URL's `k` query param is
-      # checked against (docs/07 §5).
   function:
     - key: resolver
       handler: index.handler
-    - key: exportTrigger
-      handler: webtriggers/export.handler
     - key: bylineProps
       handler: resolvers/bylineProps.handler
 resources:
@@ -69,6 +68,8 @@ resources:
     path: src/frontend/dashboard.tsx
   - key: settings
     path: src/frontend/settings.tsx
+  - key: export-ui
+    path: static/export-ui/build
 permissions:
   scopes:
     - storage:app # KVS custom entities
@@ -77,16 +78,16 @@ permissions:
     - read:group:confluence # group membership resolution
     - read:content.permission:confluence # other-user cannot-view checks
   # No write:* scopes in v1. No external egress to any third party in any
-  # version (§7) — the export webtrigger is an inbound endpoint only.
+  # version (§7). No webtrigger in this app (docs/07 §5) — every inbound
+  # call, including export, goes through the normal Forge resolver/invoke()
+  # path, the same as every other surface.
 app:
   runtime:
     name: nodejs22.x
-  # TODO(T1, before first deploy): this id was inherited from the reference
-  # scaffold's spike registration (kostebekteknoloji's Atlassian account).
-  # Run `forge register "Attestly"` under the owner's own Atlassian account
-  # before the first `forge deploy` — that command rewrites this id. Do not
-  # deploy against someone else's registered app id.
-  id: ari:cloud:ecosystem::app/560c26ed-f8d8-4c20-8646-67d59784d534
+  # Registered under the owner's own Atlassian account (Uğur DOĞAN) — this is
+  # the app already installed on ugurdogan.atlassian.net's development
+  # environment (docs/09).
+  id: ari:cloud:ecosystem::app/4407810c-a553-405b-821d-2965b8bd4379
   storage:
     entities:
       - name: confirmation
@@ -184,25 +185,3 @@ app:
               - pageId
             range:
               - at
-      - name: export-job
-        # T11 (docs/07 §5): transient, one-time, TTL ~5 min (storage/exportJobs.ts).
-        # Looked up by its key alone (exportjob#{token}) -- no index needed.
-        attributes:
-          token:
-            type: string
-          requestedBy:
-            type: string
-          format:
-            type: string
-          scope:
-            type: string
-          statusFilter:
-            type: string
-          dateFrom:
-            type: string
-          dateTo:
-            type: string
-          pages:
-            type: any
-          createdAt:
-            type: string

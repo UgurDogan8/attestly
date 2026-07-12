@@ -114,6 +114,29 @@ describe('resolvePageVisibility (tech design §4, normative)', () => {
     const result = await resolvePageVisibility(['page-1']);
     expect(result.get('page-1')).toEqual({ kind: 'restricted' });
   });
+
+  it('PR review regression: chunks a >100-id request into multiple bulk calls instead of silently dropping the overflow as restricted', async () => {
+    const pageIds = Array.from({ length: 150 }, (_, i) => `page-${i}`);
+    const bulkCalls: string[] = [];
+    fakeApi.setHandler((url) => {
+      if (url.startsWith('/wiki/api/v2/pages?')) {
+        bulkCalls.push(url);
+        const idsParam = new URL(`https://x${url}`).searchParams.get('id') ?? '';
+        const ids = idsParam.split(',');
+        return jsonResponse(200, { results: ids.map((id) => ({ id, title: `Title ${id}` })) });
+      }
+      throw new Error(`unexpected existence-probe call for ${url}`);
+    });
+
+    const result = await resolvePageVisibility(pageIds);
+
+    // Two batches of ≤100, not one truncated request.
+    expect(bulkCalls).toHaveLength(2);
+    expect(result.size).toBe(150);
+    for (const id of pageIds) {
+      expect(result.get(id)).toEqual({ kind: 'visible', title: `Title ${id}` });
+    }
+  });
 });
 
 describe('buildDashboardRow', () => {

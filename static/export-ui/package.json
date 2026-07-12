@@ -1,0 +1,17 @@
+{
+  "name": "attestly-export-ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom UI export surface (docs/07 §5, post-PR-review) — the one part of Attestly that isn't UI Kit, because triggering a real browser download is the one thing UI Kit can't do.",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@forge/bridge": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.1.4"
+  }
+}

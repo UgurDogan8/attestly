@@ -6,6 +6,18 @@
 > `docs/00`–`06` specs are the authority. This document records the **one deliberate deviation**
 > (Custom UI → UI Kit) and everything that follows from it. Where this doc is silent, the
 > existing `docs/02`–`06` are normative and unchanged.
+>
+> **Revision (PR #1 review, post-July 2026):** §5's export design changed. The original plan below
+> served export through a token+secret-guarded webtrigger because UI Kit cannot trigger a browser
+> download. Review flagged real problems with that webtrigger (an un-chunked >100-page visibility
+> read that silently dropped rows, a status computation that could never report `expired`, and the
+> secret traveling in the download URL itself). The fix moves *only* the download action to a small
+> Custom UI surface (`static/export-ui/`) — the one deliberate exception to "UI Kit only, no build
+> step" below — and deletes the webtrigger outright: role-gating, visibility filtering, row
+> building, and CSV/PDF assembly all stay exactly where they were, in a normal `asUser` resolver,
+> just returned over `invoke()` instead of a separate HTTP endpoint. §5 reflects the new design;
+> §1's table, §3's manifest sample, and §9's invariant 6 are updated to match. The rest of this
+> document (§2, §4, §6–§8, §10) is otherwise unchanged.
 
 ---
 
@@ -19,7 +31,7 @@ The `bitbucket/main` scaffold is an excellent, spike-validated design for the Re
 |---|---|---|---|
 | Frontend tech | **Custom UI** (Vite MPA, `static/app`, `packages/shared` bridge) | **UI Kit** (`@forge/react`, `render: native`) | Owner directive; proven in the prior Attestly build; no bundler/build step → **maintainability is the stated priority** |
 | Test runner | Vitest | **Jest** (`ts-jest`) | Owner directive (PRD §4.1 explicitly permits "Vitest **or Jest**") |
-| File download | client-side Blob (Custom UI can) | **one token-guarded export webtrigger** (UI Kit sandbox cannot download) | Only UI-Kit-compatible way to emit a file; §5 below makes it visibility-safe |
+| File download | client-side Blob (Custom UI can) | **one small Custom UI surface** (`static/export-ui/`) calling the same `asUser` resolver every other surface uses (revised post-PR-review — see the box above; originally a token-guarded webtrigger) | UI Kit's sandbox can't trigger a download; Custom UI can — §5 below |
 | Scopes | already minimal (`docs/02` §7) | **same, re-justified per-scope** (§6) | Owner: "review permissions, no excess access" — the prior build over-scoped; the reference is already least-privilege |
 | Repo shape | npm workspaces + Vite | **single package, flat `src/`** | No static↔src boundary once Custom UI is gone → `packages/shared` loses its only reason to exist (`docs/02` §3) |
 
@@ -45,32 +57,38 @@ and the v1/v1.1 split (reminders + reconfirm-on-change stay v1.1).
 - `permissions.scopes` — the reference's five scopes, no additions in v1 (§6).
 
 ### Changed (the UI Kit consequences)
-1. **No `static/app`, no Vite, no `packages/shared` workspace.** Delete them. Frontend becomes
+1. **No `static/app`, no `packages/shared` workspace** for the app proper. Frontend becomes
    `@forge/react` components under `src/frontend/`. Shared types + i18n move to `src/shared/`
    (imported by both backend and frontend — now one Forge bundle, so a plain relative import is
-   legal and the workspace package is unnecessary).
-2. **Resources point at `.tsx` UI Kit entries** with `render: native` (not `entry`/`build`).
+   legal and the workspace package is unnecessary). The one exception, post-PR-review (§5):
+   `static/export-ui/` is a small, separate Vite project — see the revision box at the top.
+2. **Resources point at `.tsx` UI Kit entries** with `render: native` (not `entry`/`build`) —
+   except `export-ui` (§5), which is Custom UI and has no `render:` set.
 3. **Assignment config is a UI Kit `Modal`, not a native macro-config panel** — see §4.3. This
    keeps the hard rule from `docs/02` §11.6 (**assignment data never enters page ADF**) trivially
    satisfied: there is no macro config ADF to leak into.
-4. **Export is a server-side webtrigger** (§5) instead of client Blob assembly. PDF is generated
-   **server-side** (UI Kit has no DOM/canvas) by a pure `src/domain/pdf.ts`, not client-side.
+4. **Export's CSV/PDF assembly is server-side** (§5), in the same `asUser` resolver layer as
+   everything else — not a webtrigger, not client Blob assembly. PDF generation itself is
+   **server-side** (UI Kit/Custom UI both skip a DOM/canvas dependency this way) by a pure
+   `src/domain/pdf.ts`. The Custom UI surface only turns the resolver's response into a download.
 5. **Test runner Jest** with `ts-jest`; CI swaps `vitest run` → `jest`.
 
 ### Cost we accept, stated honestly
-A webtrigger disqualifies the app from the **"Runs on Atlassian"** *program badge* (`docs/02` §7).
-It does **not** break the real security claim: a webtrigger is an *inbound* endpoint; the app still
-makes **zero outbound calls to third parties** — "no external egress" stays true in the privacy
-policy and security statement. We lose a marketing label, not the compliance substance. Data stays
-entirely in Forge storage; scopes stay minimal. The owner never required the RoA badge and the
-prior build already shipped with webtriggers.
+Superseded by the PR #1 revision (see the box at the top of this document): the original plan here
+traded away the **"Runs on Atlassian"** badge for a token-guarded export webtrigger. There is no
+webtrigger in this app anymore — §5 below moved the download action to a small Custom UI surface
+instead — so that trade no longer exists and the badge is no longer forfeited. The one remaining,
+much narrower cost is the "no build step" rule: `static/export-ui/` is a real Vite project with its
+own `package.json`/`node_modules`/build output, the sole exception to "UI Kit only, bundled
+directly by the Forge CLI" (§1's "Changed" list, item 1).
 
 ---
 
 ## 2. Repository layout (target)
 
 ```
-manifest.yml            UI Kit modules + storage entities + 5 scopes + 1 export webtrigger
+manifest.yml            UI Kit modules + one Custom UI module (export-ui, §5) + storage entities
+                        + 5 scopes; no webtrigger (revised post-PR-review, see the box above)
 package.json            single package (NOT workspaces): @forge/api, @forge/react, @forge/resolver,
                         @forge/kvs, @forge/bridge; dev: typescript, jest, ts-jest, @types/*
 tsconfig.json           strict; moduleResolution "node" (Forge bundler requirement, docs/02 §10)
@@ -94,25 +112,27 @@ src/
     configs.ts          page-config CRUD (soft-delete via active), tracked-index queries
     settings.ts         singleton get/save
     audit.ts            config-audit append-only writer + by-page reader
-    exportJobs.ts       transient export-job records for the webtrigger (§5)
   events/               v1.1 only — leave .gitkeep, no modules declared in v1
   frontend/             @forge/react UI Kit surfaces (render: native)
     macro.tsx           reader states R1–R7 (docs/04 §2.1)
     byline.tsx          chip + dialog (docs/04 §2.2)
-    dashboard.tsx       list + filters + drill-down + export dialog (docs/04 §3.2–3.4)
+    dashboard.tsx       list + filters + drill-down (export button navigates out, §5)
     settings.tsx        managers group, defaults, export-all, lifecycle notice (docs/04 §3.5)
-    components/         shared UI Kit pieces: StatusLozenge, ConfirmBlock, ConfigModal, useInvoke
+    components/         shared UI Kit pieces: StatusLozenge, ConfirmBlock, ConfigModal, useInvoke,
+                        exportNavigation.ts (router.navigate to the Custom UI export surface)
   shared/               was packages/shared — types + i18n, imported by backend AND frontend
     types.ts            invoke contract (Result<T>, PageStatusResponse, …)
     i18n/{en,tr,index}.ts
-  webtriggers/
-    export.ts           token-guarded byte-streamer (Content-Disposition); asApp; §5
+static/export-ui/       the one Custom UI surface (§5) — its own package.json/vite.config.ts,
+                        imports src/shared/{types,i18n} by relative path same as the backend does
 tests/                  or co-located *.test.ts — Jest
 docs/                   00–06 (unchanged) + 07 (this) + 08 (test cases)
 ```
 
-Delete from the scaffold: `static/`, `packages/`, `src/events/.gitkeep` stays. Move
-`packages/shared/src/{types,i18n}` → `src/shared/`.
+Delete from the scaffold: `static/app`, `packages/`, `src/events/.gitkeep` stays. Move
+`packages/shared/src/{types,i18n}` → `src/shared/`. `src/webtriggers/` and
+`src/storage/exportJobs.ts` existed in an earlier revision of this plan and were deleted
+post-PR-review (§5) — there is no webtrigger in this app.
 
 ---
 
@@ -143,24 +163,26 @@ modules:
       resolver: { function: resolver }
       route: read-confirmations
       title: Read confirmations
+    - key: acknowledge-export        # the ONLY Custom UI module (no render:); §5, post-PR-review
+      resource: export-ui
+      resolver: { function: resolver }   # same shared resolver function as every other module
+      route: read-confirmations-export   # Forge route pattern is ^[a-z0-9-]+$ -- no `/`
+      title: Export read confirmations
   confluence:globalSettings:
     - key: acknowledge-settings
       resource: settings
       render: native
       resolver: { function: resolver }
       title: Read Confirmation
-  webtrigger:
-    - key: export-trigger            # the ONLY webtrigger; token-guarded (§5)
-      function: exportTrigger
   function:
-    - { key: resolver,      handler: index.handler }
-    - { key: exportTrigger, handler: webtriggers/export.handler }
-    - { key: bylineProps,   handler: bylineProps.handler }   # if dynamicProperties needs it
+    - { key: resolver,    handler: index.handler }
+    - { key: bylineProps, handler: bylineProps.handler }   # if dynamicProperties needs it
 resources:
-  - { key: macro,     path: src/frontend/macro.tsx }
-  - { key: byline,    path: src/frontend/byline.tsx }
-  - { key: dashboard, path: src/frontend/dashboard.tsx }
-  - { key: settings,  path: src/frontend/settings.tsx }
+  - { key: macro,      path: src/frontend/macro.tsx }
+  - { key: byline,     path: src/frontend/byline.tsx }
+  - { key: dashboard,  path: src/frontend/dashboard.tsx }
+  - { key: settings,   path: src/frontend/settings.tsx }
+  - { key: export-ui,  path: static/export-ui/build }   # Vite build output, §5
 app:
   runtime: { name: nodejs22.x }
   id: ari:cloud:ecosystem::app/560c26ed-f8d8-4c20-8646-67d59784d534   # keep scaffold id
@@ -229,9 +251,10 @@ Where the reference used a Custom UI macro-config panel (`docs/04` §3.1), we us
   counts; group membership resolved at call time; permission-check fan-out **batched ~10 concurrent
   with per-invocation cache**, 404→`[deleted user]`; counter self-heal on load; History from
   `config-audit`.
-- **Export dialog:** format (CSV/PDF), scope (page/space/site), date range, status filter →
-  progress → download via the export webtrigger (§5). Render the returned URL as
-  `Link appearance="button"` (the prior build found `router.open()` unreliable for downloads).
+- **Export:** the "Export" button doesn't open an in-page dialog — UI Kit can't trigger a browser
+  download, so it never owned that job. It calls `router.navigate()` to the Custom UI export
+  surface (§5, `exportNavigation.ts`), carrying the current scope (page/space) as a query param.
+  That surface owns the format/scope/date-range/status-filter form and the download itself.
 
 ### 4.5 Settings (`settings.tsx`) — admin only (`docs/04` §3.5)
 Compliance-managers group picker, defaults (reconfirm off in v1), "Export all data" (site scope
@@ -240,12 +263,74 @@ through the same export pipeline), 28-day/21-day data-lifecycle notice (exact i1
 
 ---
 
-## 5. Export design (UI-Kit-safe, visibility-safe) — the trickiest part
+## 5. Export design — revised post-PR-review (superseded the original webtrigger design)
 
-**Problem:** UI Kit can't download a file (no DOM Blob); a webtrigger can serve one but runs
-`asApp` only — so a naive webtrigger would **bypass the per-viewer visibility rule** (`docs/02` §4)
-and could leak restricted pages. Solution: split responsibilities so `asUser` does the visibility
-filtering and the webtrigger is a dumb, short-lived byte-streamer.
+> The original version of this section (webtrigger + transient job + shared-secret token) is kept
+> below as **§5.1 (superseded)** for the record. This is the live design.
+
+**Problem:** UI Kit can't download a file (no DOM Blob). The original design worked around that
+with a webtrigger, but a PR review (Eren Burak Tutuş, Bitbucket PR #1) found three real problems
+with it: (1) the visibility-resolution helper it reused capped its bulk `asUser` read at 100 ids
+without chunking, so a site/space export over 100 tracked pages silently dropped the overflow as
+"restricted"; (2) status was computed against the confirmer's own last-confirmed version instead of
+the page's live version, so export could never report `expired`; (3) the shared secret traveled in
+every download URL (browser history, proxy logs, `Referer`), on top of a non-constant-time compare,
+a get-then-delete TOCTOU on "one-time" redemption, and a TTL that was stored but never checked
+server-side.
+
+**Fix:** stop trying to make a webtrigger UI-Kit-safe and visibility-safe at the same time, and
+instead give *only the download action* to a small Custom UI surface — the one part of the app that
+actually needs a real browser to trigger a download. Everything else that made the original design
+correct (role gate, `asUser` visibility filtering, row building, CSV/PDF assembly) doesn't move at
+all; it just returns its result over `invoke()` like every other resolver in this app, instead of
+over a separate HTTP endpoint that needed its own auth scheme.
+
+**Flow**
+1. **`static/export-ui/`** — a small, framework-free Vite bundle (`confluence:globalPage` module
+   `acknowledge-export`, Custom UI, route `read-confirmations-export`). Renders the format/scope/
+   date-range/status-filter form. The dashboard/drill-down/settings "Export" buttons reach it via
+   `router.navigate()` (`exportNavigation.ts`), passing the fixed page/space scope as a query param
+   — there is no in-page UI Kit dialog anymore.
+2. **`exportFile` resolver (`asUser`, `src/resolvers/export.ts`)** — role-gated exactly like the
+   old `startExport`, called via a normal `invoke('exportFile', payload)` from the Custom UI page.
+   Resolves the in-scope, viewer-visible page set the same way the dashboard does
+   (`resolvePageVisibility`/`buildDashboardRow`/`matchesStatusFilter`, now chunked past 100 ids —
+   fix for finding 1), builds `ExportRow[]` per page (`src/domain/export.ts`, using each page's
+   real live version from `resolvePageVisibility` as `currentVersion` — fix for finding 2), and
+   serializes with the unchanged `csv.ts`/`pdf.ts`. Returns the file directly in the resolver
+   response: `{ format: 'csv', filename, csv }` or `{ format: 'pdf', filename, base64 }`.
+3. **The Custom UI page turns the response into a download** — `new Blob([...])` +
+   `URL.createObjectURL` + a synthetic `<a download>` click. That's it; there is no second request.
+
+**Why this is correct and safe**
+- Visibility filtering still happens under `asUser`, in the same place it always did — nothing
+  about that guarantee changed, it just isn't handed off to a separate `asApp`-only endpoint anymore.
+- No webtrigger exists in this app at all (`src/release/manifest.test.ts`'s TC-H2 now asserts
+  zero, not one) — finding 3's entire class of problem (secret-in-URL, TOCTOU, TTL) has nothing
+  left to apply to, because there's no separate one-time-redeemable URL in the first place. The
+  file travels back over the same authenticated `invoke()` channel every other feature already uses.
+- No transient `export-job` KVS record either — the whole job happens in one resolver invocation,
+  so there's nothing to leak, replay, or let expire incorrectly.
+- CSV + PDF still come from the **same rows** (`src/domain/export.ts`) ⇒ record parity guaranteed
+  (`docs/03` §4) — unchanged from the original design.
+- **Cost:** `static/export-ui/` is a real Vite project (own `package.json`, `node_modules`, build
+  output) — the one exception to "UI Kit only, no build step" (§1). CI builds it before `forge
+  lint`/tests (`.github/workflows/ci.yml`); Forge's own deploy step needs it built too.
+- **Open residual, not yet verified against a live site** (this doc's standing convention, `docs/02`
+  §11): passing the Custom UI module's flat `route:` as a bare string to `@forge/bridge`'s
+  `router.navigate()` (`exportNavigation.ts`) is believed correct per the installed
+  `@forge/bridge` type definitions but hasn't been exercised on a real Confluence site in this
+  session — verify on the next deploy-and-test pass. A second, smaller residual: whether a
+  `confluence:globalPage` module without an explicit "hide from nav" flag shows up as an extra
+  entry in Confluence's global nav alongside the main "Read confirmations" dashboard is cosmetic,
+  not a blocker, and worth checking the same pass.
+
+### 5.1 Original design (superseded — kept for the record)
+
+**Problem (as understood at the time):** UI Kit can't download a file (no DOM Blob); a webtrigger
+can serve one but runs `asApp` only — so a naive webtrigger would **bypass the per-viewer
+visibility rule** (`docs/02` §4) and could leak restricted pages. Solution: split responsibilities
+so `asUser` does the visibility filtering and the webtrigger is a dumb, short-lived byte-streamer.
 
 **Flow**
 1. **`startExport` resolver (`asUser`)** — role-gated. Resolves the in-scope, **viewer-visible**
@@ -263,7 +348,7 @@ filtering and the webtrigger is a dumb, short-lived byte-streamer.
    Deletes the job (one-time). No visibility decision happens here — it was baked into
    `visiblePageIds` by the `asUser` resolver.
 
-**Why this is correct and safe**
+**Why this was believed correct and safe at the time (superseded by the findings above):**
 - Visibility filtering happens under `asUser` (can't leak). The webtrigger only ever touches pages
   already cleared for this exporter.
 - The job stores only IDs + titles (small — bounded by *tracked* pages, well under the 240 KiB KVS
@@ -274,8 +359,10 @@ filtering and the webtrigger is a dumb, short-lived byte-streamer.
 - CSV + PDF come from the **same `export.ts` rows** ⇒ record parity guaranteed (`docs/03` §4).
 
 **Deviations from reference to record:** PDF is **server-side** (reference was client-side —
-impossible in UI Kit); export is a **webtrigger** (reference forbade it for RoA). Both are direct,
-unavoidable consequences of the UI Kit directive and are contained to `webtriggers/` + `domain/pdf`.
+impossible in UI Kit); this remains true after the post-PR-review revision above (`domain/pdf.ts`
+is unchanged) — only the *download* action moved to Custom UI, not PDF generation itself. Export
+being a **webtrigger** was the original UI Kit-directive consequence recorded here; §5 above
+records why that's no longer the design.
 
 ---
 
@@ -298,15 +385,16 @@ Attestly build over-requested** so the reduction is deliberate.
   SDK gating (`docs/02` §2, §7). This is the single biggest scope reduction.
 - `read:confluence-content.summary` — prior page-updated trigger scope. The page-updated **trigger
   is v1.1**; correctness never depends on it (status is computed from versions, `docs/02` §6.2).
-- **Webtrigger export was unauthenticated then token-patched** in the prior build; here the export
-  webtrigger is token-guarded **and** visibility-safe from day one (§5).
+- **Webtrigger export was unauthenticated then token-patched** in the prior build; the token-guard
+  approach was tried here too (§5.1) before a PR review found it still had real problems and export
+  moved off webtriggers entirely (§5) — no export-specific scope was ever needed either way.
 - No `read:content.metadata:confluence` beyond what the five scopes cover; no `read:space`,
   no `write:*`, no `permissions.external`.
 
 **CI guard (T14):** manifest scope snapshot test — any PR touching `permissions.scopes` must
 consciously update the snapshot. Keep `forge lint` in CI. (RoA `forge eligibility` gate from the
-reference is **dropped** — we knowingly forgo the badge; replace it with a test asserting exactly
-one webtrigger exists and it is the export trigger, so no *accidental* webtrigger creeps in.)
+reference is **dropped** — replaced with a test that now asserts **zero** webtriggers exist, so no
+*accidental* webtrigger creeps back in; the badge itself is no longer forfeited, see §5.)
 
 ---
 
@@ -342,8 +430,10 @@ config-audit row; deleted-content 404 → `[deleted page]`, zero writes, resume 
 
 ### 7.3 Manual E2E checklist
 Keep `docs/release-checklist.md` (from `docs/05` §4), adapted: drop the client-Blob step, add
-"export webtrigger returns 403 without secret / 410 on reused token / correct file with it", and
-"a manager cannot export a page they can't view (visibility rule)".
+"export from the Custom UI surface actually triggers a browser download for both CSV and PDF,
+scoped correctly from the dashboard/drill-down/settings entry points", and "a manager cannot
+export a page they can't view (visibility rule)". The original checklist item here (webtrigger
+403/410 behavior) no longer applies — there is no webtrigger to test.
 
 ### 7.4 Acceptance test cases — see `docs/08_test_cases.md`
 Given/When/Then persona-driven cases in the owner's required format (the Test Cases 1.0.0 sheet).
@@ -358,9 +448,11 @@ Same epics/dependencies as `docs/06`; deltas only:
   move `packages/shared`→`src/shared`, delete `static/`+`packages/`. Accept: 4 surfaces render a
   hello page on dev; CI green. **Verify `.tsx` resources bundle.**
 - **T2 Storage** — unchanged from `docs/06` (KVS entities exact; idempotent confirm txn;
-  append-only). Add `exportJobs.ts` (§5).
+  append-only). (`exportJobs.ts` was added here originally and removed post-PR-review, §5 — no
+  transient job record in the current design.)
 - **T3 Domain status** — unchanged.
-- **T4 Resolvers** — unchanged three-tier auth; add `startExport` (§5).
+- **T4 Resolvers** — unchanged three-tier auth; add `exportFile` (§5; originally `startExport`,
+  renamed when the webtrigger was removed).
 - **T5 i18n + theming** — catalogs already lifted in `src/shared/i18n`; wire `@forge/react` theme
   (auto) + locale from context. (No react-intl needed — a tiny `t(key, vars)` over the catalog.)
 - **T6 Macro R1–R7** — UI Kit components; pessimistic confirm.
@@ -368,10 +460,12 @@ Same epics/dependencies as `docs/06`; deltas only:
 - **T8 Byline** — chip + dialog; resolve the byline-resolver schema residual.
 - **T9 Dashboard** — visibility rule; list from counters.
 - **T10 Drill-down** — batched permission checks; History from config-audit.
-- **T11 Export** — **webtrigger pipeline (§5)**; CSV per `docs/03` §4.
+- **T11 Export** — CSV per `docs/03` §4; **`exportFile` resolver + Custom UI download surface**
+  (§5, post-PR-review — originally a webtrigger pipeline).
 - **T12 PDF** — **server-side `domain/pdf.ts`** (not client-side); parity test.
 - **T13 Settings** — admin gate; export-all via §5 site scope.
-- **T14 CI guards** — scope snapshot; **single-webtrigger assertion** (replaces `forge eligibility`).
+- **T14 CI guards** — scope snapshot; **zero-webtrigger assertion** (replaces `forge eligibility`;
+  originally asserted exactly one, updated post-PR-review when the webtrigger was removed).
 - **T15 Listing** — security statement says "no external egress, no write scopes, data stays in
   Forge" (drop the RoA-badge claim); free ≤10-users boundary is Marketplace-tier billing
   (Partner Portal $0 price for the 1–10 tier), **not** an in-app code path — see `docs/01` §5.
@@ -389,8 +483,9 @@ only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permi
 3. Status is computed, never stored; no clock read inside domain functions.
 4. `confirmedAt` + `pageVersion` come from server reads only, never the client payload.
 5. Assignment data never written to page ADF (there is no macro `config:` block — keep it that way).
-6. Exactly one webtrigger (the export trigger); it is token+secret guarded and only ever reads
-   pages already visibility-filtered under `asUser`.
+6. **No webtrigger** (revised post-PR-review, §5) — export runs through the normal `asUser`
+   resolver + Custom UI `invoke()` path, the same as every other feature. `manifest.test.ts`'s
+   TC-H2 asserts zero webtriggers exist, not one.
 7. `permissions.scopes` = the five in §6; any change updates the snapshot test in the same PR.
 
 ---
@@ -399,7 +494,13 @@ only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permi
 - Byline `resolver`-property schema (T8) — confirm the invoke pathway under `render: native`.
 - `@forge/react` group picker + user/group **search** endpoint/scope (T7).
 - Forge bundling of `.tsx` resources + `src/shared` relative import (T1 — validate early).
-- Export job size if *tracked* pages ever exceed the 240 KiB job cap (chunk the job then).
 - Free-tier (≤10 users) enforcement point + pricing numbers (T15 — still blocked on research,
   `docs/01` §5).
+- `router.navigate()` to the Custom UI export surface's flat `route:` string, and whether a
+  `confluence:globalPage` module without an explicit "hide from nav" flag adds an unwanted nav
+  entry (§5, post-PR-review) — verify both on the next real deploy-and-test pass.
+- `invoke()` response payload headroom for a very large single-call export (§5) — the resolver
+  builds the whole file in one invocation now, same memory profile the old webtrigger already had,
+  but the `invoke()` transport's own size ceiling (as opposed to a webtrigger HTTP response's) is
+  unconfirmed against a live site; chunked row-fetching is the fallback if a real deploy hits it.
 ```

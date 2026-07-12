@@ -64,20 +64,6 @@ export class FakeForgeApi {
   }
 }
 
-/**
- * Minimal fake of @forge/api's named `webTrigger` export (T11 —
- * src/resolvers/export.ts calls `webTrigger.getUrl('export-trigger')`).
- * Real behavior is a single async lookup; tests set `urlByModuleKey` or just
- * rely on the default `https://example.test/x/{moduleKey}` pattern.
- */
-export class FakeWebTrigger {
-  urlByModuleKey: Record<string, string> = {};
-
-  getUrl = jest.fn(async (moduleKey: string): Promise<string> => {
-    return this.urlByModuleKey[moduleKey] ?? `https://example.test/x/${moduleKey}`;
-  });
-}
-
 export function fakeRoute(strings: TemplateStringsArray, ...values: unknown[]): { value: string } {
   let result = strings[0];
   values.forEach((value, i) => {

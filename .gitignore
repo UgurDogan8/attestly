@@ -52,3 +52,8 @@ Thumbs.db
 
 # Jest coverage output
 coverage/
+
+# Vite build output for the one Custom UI surface (docs/07 §5) — Forge
+# builds it fresh from static/export-ui/ at deploy time, same as it bundles
+# the UI Kit .tsx resources; never commit the built bundle.
+static/export-ui/build/

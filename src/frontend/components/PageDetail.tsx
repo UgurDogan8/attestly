@@ -20,8 +20,8 @@ import {
 import { useI18n } from './useI18n';
 import type { I18n } from './useI18n';
 import { useInvoke } from './useInvoke';
-import { formatLocalDateTime } from './formatLocalDateTime';
-import { ExportDialog } from './ExportDialog';
+import { formatLocalDateTime, formatLocalDate } from './formatLocalDateTime';
+import { openExportPage } from './exportNavigation';
 import type {
   GetPageDetailPayload,
   GetPageDetailResponse,
@@ -29,6 +29,7 @@ import type {
   GetPageHistoryPayload,
   GetPageHistoryResponse,
   HistoryEntryView,
+  HistoryChangeView,
 } from '../../shared';
 
 /**
@@ -67,6 +68,15 @@ function assignmentLabel(t: I18n['t'], row: DetailUserRow): string {
     return t('detail.assignedDirectly');
   }
   return t('detail.assignedViaGroup', { group: row.assignmentSource.groupName ?? t('detail.groupDeleted') });
+}
+
+/** History tab line (data model §2.4): one full localized sentence per diffed change. */
+function historyChangeText(t: I18n['t'], actorName: string, change: HistoryChangeView): string {
+  if (change.kind === 'dueDate') {
+    return t('detail.history.dueDate', { actor: actorName, date: change.dueDate ? formatLocalDate(change.dueDate) : '—' });
+  }
+  const key = change.kind === 'assigned' ? 'detail.history.assigned' : 'detail.history.removed';
+  return t(key, { actor: actorName, subject: change.subjectName });
 }
 
 interface UserRowsTableProps {
@@ -137,7 +147,6 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
   const [historyEntries, setHistoryEntries] = useState<HistoryEntryView[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,7 +210,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
       </LinkButton>
       <Inline space="space.200" alignBlock="center" spread="space-between">
         <Heading size="medium">{title}</Heading>
-        <Button onClick={() => setExportOpen(true)}>{t('dashboard.export')}</Button>
+        <Button onClick={() => openExportPage({ pageId: data.pageId })}>{t('dashboard.export')}</Button>
       </Inline>
       <Text>
         {t('detail.summary', {
@@ -257,14 +266,15 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
           ) : historyEntries.length === 0 ? (
             <Text>{t('detail.history.empty')}</Text>
           ) : (
-            <Stack space="space.100">
+            <Stack space="space.150">
               {historyEntries.map((entry, i) => (
-                // History has no stable id from the resolver; (at, actor) can repeat within the same request batch.
-                <Inline key={`${entry.at}#${entry.actor}#${i}`} space="space.100">
-                  <User accountId={entry.actor} />
+                // History has no stable id from the resolver; (at, actorName) can repeat within the same request batch.
+                <Stack key={`${entry.at}#${entry.actorName}#${i}`} space="space.025">
                   <Text>{formatLocalDateTime(entry.at)}</Text>
-                  <Text>{JSON.stringify(entry.entry)}</Text>
-                </Inline>
+                  {entry.changes.map((change, j) => (
+                    <Text key={j}>{historyChangeText(t, entry.actorName, change)}</Text>
+                  ))}
+                </Stack>
               ))}
               {historyCursor ? (
                 <Box>
@@ -277,10 +287,6 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
           )}
         </TabPanel>
       </Tabs>
-
-      {exportOpen ? (
-        <ExportDialog onClose={() => setExportOpen(false)} fixedPageScope={{ pageId: data.pageId, pageTitle: data.title }} />
-      ) : null}
     </Stack>
   );
 }

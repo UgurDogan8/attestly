@@ -9,12 +9,14 @@ import type { DashboardRow } from '../../shared';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
+  router: { navigate: jest.fn() },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
+  router: { navigate: jest.Mock };
 };
 
 function extractText(node: unknown): string {
@@ -163,16 +165,15 @@ describe('Dashboard — row click (T10: opens drill-down)', () => {
   });
 });
 
-describe('Dashboard — export (T11)', () => {
-  it('clicking Export opens the export dialog, and it starts closed', async () => {
+describe('Dashboard — export (T11, revised post-PR-review to the Custom UI export surface)', () => {
+  it('clicking Export navigates to the export page, with the current space filter pre-filled', async () => {
     bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [row()], nextCursor: null } });
     const renderer = await mount();
 
-    expect(extractText(renderer.toJSON())).not.toContain('Export confirmations');
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
     });
-    expect(extractText(renderer.toJSON())).toContain('Export confirmations');
+    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export');
   });
 });
 

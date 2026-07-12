@@ -1,6 +1,13 @@
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
-import { isComplianceManager, checkViewPermission, getGroupMemberAccountIds, resolveGroupNames } from './auth';
+import { diffConfigChange, type ConfigChangeEntry } from '../domain/history';
+import {
+  isComplianceManager,
+  checkViewPermission,
+  getGroupMemberAccountIds,
+  resolveGroupNames,
+  resolveUserDisplayName,
+} from './auth';
 import { resolvePageVisibility } from './dashboard';
 import { mapWithConcurrency } from './concurrency';
 import { getPageConfig, savePageConfig, type PageConfigRecord } from '../storage/configs';
@@ -16,7 +23,10 @@ import {
   type AssignmentSource,
   type GetPageHistoryPayload,
   type GetPageHistoryResponse,
+  type HistoryChangeView,
 } from '../shared';
+
+const NAME_RESOLUTION_CONCURRENCY = 10;
 
 /**
  * Drill-down row assembly (docs/06 T10, UX doc §3.3, tech design §4/§5).
@@ -200,15 +210,60 @@ export async function getPageDetail(payload: GetPageDetailPayload, accountId: st
   });
 }
 
-/** History tab (data model §2.4, UX doc §3.3): "who was required, since when". Same access gate as the drill-down itself. */
+/**
+ * History tab (data model §2.4, UX doc §3.3): "who was required, since
+ * when". Same access gate as the drill-down itself. Diffing (domain/history)
+ * is pure and locale-agnostic; this resolver's job is resolving every
+ * account/group id the diff references to a display name — the frontend
+ * only formats already-resolved strings through its own locale-aware `t()`
+ * (docs/07 §4: i18n stays client-side, never baked in server-side).
+ */
 export async function getPageHistory(payload: GetPageHistoryPayload, accountId: string): Promise<Result<GetPageHistoryResponse>> {
   if (!(await isComplianceManager(accountId))) {
     return err('FORBIDDEN', 'You need compliance-manager access to view this page.');
   }
 
   const page = await queryAuditPage(payload.pageId, payload.cursor);
-  return ok({
-    entries: page.results.map((record) => ({ at: record.at, actor: record.actor, entry: record.entry })),
-    nextCursor: page.nextCursor ?? null,
-  });
+  const changesByRecord = page.results.map((record) => diffConfigChange(record.entry as unknown as ConfigChangeEntry));
+
+  const accountIds = new Set<string>(page.results.map((record) => record.actor));
+  const groupIds = new Set<string>();
+  for (const changes of changesByRecord) {
+    for (const change of changes) {
+      if (change.kind !== 'dueDate' && change.subjectType === 'user') {
+        accountIds.add(change.subjectId);
+      } else if (change.kind !== 'dueDate') {
+        groupIds.add(change.subjectId);
+      }
+    }
+  }
+
+  const [userNamePairs, groupOptions] = await Promise.all([
+    mapWithConcurrency(Array.from(accountIds), NAME_RESOLUTION_CONCURRENCY, async (id): Promise<[string, string]> => [
+      id,
+      await resolveUserDisplayName(id, 'user'),
+    ]),
+    resolveGroupNames(Array.from(groupIds)),
+  ]);
+  const userNameById = new Map(userNamePairs);
+  const groupNameById = new Map(groupOptions.map((g) => [g.id, g.name]));
+
+  const entries = page.results.map((record, i) => ({
+    at: record.at,
+    actorName: userNameById.get(record.actor) ?? '[deleted user]',
+    changes: changesByRecord[i].map(
+      (change): HistoryChangeView =>
+        change.kind === 'dueDate'
+          ? { kind: 'dueDate', dueDate: change.dueDate }
+          : {
+              kind: change.kind,
+              subjectType: change.subjectType,
+              subjectName:
+                (change.subjectType === 'user' ? userNameById.get(change.subjectId) : groupNameById.get(change.subjectId)) ??
+                (change.subjectType === 'user' ? '[deleted user]' : '[deleted group]'),
+            },
+    ),
+  }));
+
+  return ok({ entries, nextCursor: page.nextCursor ?? null });
 }

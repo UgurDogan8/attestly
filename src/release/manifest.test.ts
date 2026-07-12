@@ -2,10 +2,12 @@ import { loadManifest } from './manifest';
 
 /**
  * Release guards (docs/07 §6, T14; docs/08 TC-H1/TC-H2). These replace the
- * reference's `forge eligibility` RoA gate, which is knowingly dropped here
- * (manifest.yml's webtrigger comment, docs/07 §1/§6) — a single token-guarded
- * export webtrigger is an accepted trade-off, not an accident, and these
- * tests are what keeps it that way.
+ * reference's `forge eligibility` RoA gate. TC-H2 originally asserted
+ * exactly one (token-guarded, accepted-trade-off) webtrigger existed; a
+ * later PR review removed the webtrigger entirely (export moved to a normal
+ * resolver + Custom UI download surface, docs/07 §5) — the guard's whole
+ * point (catch an accidental webtrigger before it ships) still holds, just
+ * inverted: this app should now have zero.
  */
 describe('manifest release guards', () => {
   it('TC-H1: scope snapshot — any PR touching permissions.scopes must consciously update this snapshot', () => {
@@ -13,10 +15,8 @@ describe('manifest release guards', () => {
     expect(manifest.permissions.scopes).toMatchSnapshot();
   });
 
-  it('TC-H2: exactly one webtrigger exists, and it is the export trigger', () => {
+  it('TC-H2: no webtrigger exists — export runs through the normal resolver + Custom UI, never an inbound HTTP endpoint', () => {
     const manifest = loadManifest();
-    const webtriggers = manifest.modules.webtrigger ?? [];
-    expect(webtriggers).toHaveLength(1);
-    expect(webtriggers[0]).toMatchObject({ key: 'export-trigger', function: 'exportTrigger' });
+    expect(manifest.modules.webtrigger ?? []).toHaveLength(0);
   });
 });

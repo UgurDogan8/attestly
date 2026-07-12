@@ -11,8 +11,9 @@ Everything is under [`docs/`](docs/). `docs/00`–`06` are the original product/
 findings, [data model](docs/03_read_confirm_data_model.md) — the audit record is the product,
 UX flows, test plan, [developer task list](docs/06_developer_task_list.md) T1–T15).
 [`docs/07`](docs/07_uikit_architecture_plan.md) is the **normative delta for this codebase**:
-Custom UI → **UI Kit**, Vitest → **Jest**, and the resulting export-webtrigger design — read it
-first, it overrides `docs/02`/`docs/06` wherever they disagree.
+Custom UI → **UI Kit**, Vitest → **Jest**, and (§5, revised post-PR-review) export's design —
+one small Custom UI download surface calling the same resolver as everything else, no webtrigger.
+Read it first, it overrides `docs/02`/`docs/06` wherever they disagree.
 [`docs/08`](docs/08_test_cases.md) holds Given/When/Then acceptance test cases.
 [`docs/09`](docs/09_deploy_procedure.md)–[`12`](docs/12_marketplace_listing_copy.md) are the T14/T15
 release docs: deploy procedure, security statement, privacy policy, Marketplace listing copy.
@@ -21,7 +22,7 @@ Visual + copy reference: open [`mockups/index.html`](mockups/index.html) in a br
 ## Layout (docs/07 §2)
 
 ```
-manifest.yml          4 UI Kit modules (render: native) + 1 export webtrigger; KVS entities
+manifest.yml          4 UI Kit modules (render: native) + 1 Custom UI module (export); KVS entities
 src/
   index.ts            Resolver() + registerResolvers → export handler
   resolvers/           thin request handlers (three-tier auth, docs/02 §4)
@@ -30,11 +31,12 @@ src/
   events/                 v1.1 only (page-updated trigger, reminders)
   frontend/              UI Kit surfaces: macro / byline / dashboard / settings (.tsx)
   shared/                 types (invoke contract) + i18n catalogs (en/tr)
-  webtriggers/            the one export webtrigger (docs/07 §5)
+static/export-ui/      the one Custom UI surface — export's download UI (docs/07 §5)
 ```
 
-No `static/`, no `packages/`, no build step — UI Kit `.tsx` resources are bundled directly by
-the Forge CLI at deploy time.
+No `packages/`, no build step for the UI Kit surfaces — `.tsx` resources are bundled directly by
+the Forge CLI at deploy time. `static/export-ui/` is the one deliberate exception (docs/07 §5): a
+small Vite project, because triggering a real browser download is the one thing UI Kit can't do.
 
 ## Development
 
@@ -46,6 +48,12 @@ npm run lint            # eslint
 npm run typecheck       # tsc --noEmit
 npm test                # jest
 npm run test:coverage   # jest --coverage (gate: domain 95% branches, overall 80% lines)
+
+# static/export-ui/ is a separate Vite project (docs/07 §5) — forge lint and
+# forge deploy both need its build output present.
+npm ci --prefix static/export-ui
+npm run build --prefix static/export-ui
+
 forge lint
 ```
 
@@ -67,10 +75,8 @@ forge install --site <your-site>.atlassian.net --product confluence -e developme
   (data model §1, §7).
 - **Scope changes are major versions** — don't touch `permissions.scopes` casually
   (snapshot-tested from T14).
-- **Exactly one webtrigger** — the token+secret-guarded export endpoint. It only ever reads
-  pages an `asUser()` resolver call already confirmed are visible to the requester
-  (docs/07 §5, §9 #6). This forfeits the "Runs on Atlassian" badge but not the
-  no-external-egress claim: the trigger is inbound-only, and the app still calls no third
-  party. Do not add a second webtrigger without updating docs/07 §1/§5/§9 and the CI guard
-  (T14).
+- **No webtriggers** — every feature, including export, goes through the normal `asUser`
+  resolver + `invoke()` path (docs/07 §5, §9 #6). There is no separate token, secret, or
+  standalone URL anywhere in this app. Do not add one without updating docs/07 §1/§5/§9 and
+  the CI guard (T14, `src/release/manifest.test.ts`'s TC-H2 — it currently asserts zero).
 - All UI strings via `src/shared/i18n` (en + tr); Atlaskit + design tokens only.

@@ -8,12 +8,14 @@ import type { GetPageDetailResponse, DetailUserRow } from '../../shared';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
+  router: { navigate: jest.fn() },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
+  router: { navigate: jest.Mock };
 };
 
 function extractText(node: unknown): string {
@@ -193,16 +195,15 @@ describe('PageDetail — tab content', () => {
   });
 });
 
-describe('PageDetail — export (T11)', () => {
-  it('clicking Export opens the export dialog scoped to this one page', async () => {
+describe('PageDetail — export (T11, revised post-PR-review to the Custom UI export surface)', () => {
+  it('clicking Export navigates to the export page, scoped to this one page', async () => {
     bridge.invoke.mockResolvedValue({ ok: true, data: detailResponse({ pageId: 'page-1', title: 'Security Policy' }) });
     const renderer = await mount();
 
-    expect(extractText(renderer.toJSON())).not.toContain('Export confirmations');
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
     });
-    expect(extractText(renderer.toJSON())).toContain('Export confirmations');
+    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export?pageId=page-1');
   });
 });
 
@@ -213,13 +214,26 @@ describe('PageDetail — History tab (lazy load)', () => {
     expect(bridge.invoke).not.toHaveBeenCalledWith('getPageHistory', expect.anything());
   });
 
-  it('loads and shows history entries once the History tab is opened', async () => {
+  it('loads and shows history entries once the History tab is opened, as human-readable text (not raw JSON)', async () => {
     bridge.invoke.mockResolvedValueOnce({ ok: true, data: detailResponse() });
     const renderer = await mount();
 
     bridge.invoke.mockResolvedValueOnce({
       ok: true,
-      data: { entries: [{ at: '2026-07-01T00:00:00.000Z', actor: 'acc-admin', entry: { action: 'created' } }], nextCursor: null },
+      data: {
+        entries: [
+          {
+            at: '2026-07-01T00:00:00.000Z',
+            actorName: 'Jane Admin',
+            changes: [
+              { kind: 'assigned', subjectType: 'user', subjectName: 'Ayşe Yılmaz' },
+              { kind: 'removed', subjectType: 'group', subjectName: 'sec-all' },
+              { kind: 'dueDate', dueDate: '2026-08-01' },
+            ],
+          },
+        ],
+        nextCursor: null,
+      },
     });
     await act(async () => {
       renderer.root.findByType(Tabs).props.onChange(4);
@@ -228,7 +242,11 @@ describe('PageDetail — History tab (lazy load)', () => {
     });
 
     expect(bridge.invoke).toHaveBeenCalledWith('getPageHistory', { pageId: 'page-1' });
-    expect(extractText(renderer.toJSON())).toContain('created');
+    const text = extractText(renderer.toJSON());
+    expect(text).toContain('Jane Admin assigned Ayşe Yılmaz');
+    expect(text).toContain('Jane Admin removed sec-all');
+    expect(text).toContain('Jane Admin set due date to');
+    expect(text).not.toContain('{"');
   });
 
   it('shows "no history yet" when the log is empty', async () => {

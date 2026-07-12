@@ -28,7 +28,7 @@ jest.mock('@forge/api', () => {
 import kvsFake from '@forge/kvs';
 import apiFake from '@forge/api';
 import { registerResolvers } from './index';
-import { savePageConfig } from '../storage/configs';
+import { savePageConfig, getPageConfig } from '../storage/configs';
 import { drainByPage } from '../storage/confirmations';
 import { drainAuditByPage } from '../storage/audit';
 import type {
@@ -342,6 +342,28 @@ describe('getConfig / saveConfig (tech design §4 — edit permission OR complia
     };
     const result = await invoke<SaveConfigPayload, ConfigResponse>('saveConfig', payload);
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('a storage failure leaves neither the config write nor the audit entry persisted (data model §2.4 atomicity)', async () => {
+    fakeApi.setHandler(pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 1, spaceId: '111' }));
+    jest.spyOn(fakeKvs, 'transact').mockImplementationOnce(() => {
+      throw new Error('storage unavailable');
+    });
+
+    const payload: SaveConfigPayload = {
+      pageId: 'page-1',
+      assignedUsers: ['acc-2'],
+      assignedGroups: [],
+      dueDate: null,
+      reconfirmOnChange: false,
+    };
+    const result = await invoke<SaveConfigPayload, ConfigResponse>('saveConfig', payload);
+
+    expect(result).toMatchObject({ ok: false, code: 'INTERNAL_ERROR' });
+    expect(await getPageConfig('page-1')).toBeUndefined();
+    const audit = [];
+    for await (const page of drainAuditByPage('page-1')) audit.push(...page);
+    expect(audit).toHaveLength(0);
   });
 });
 

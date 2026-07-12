@@ -19,8 +19,8 @@ import {
   type GetPageDetailResponse,
   type GetPageHistoryPayload,
   type GetPageHistoryResponse,
-  type StartExportPayload,
-  type StartExportResponse,
+  type ExportFilePayload,
+  type ExportFileResponse,
   type GetSettingsPayload,
   type GetSettingsResponse,
   type SaveSettingsPayload,
@@ -28,8 +28,7 @@ import {
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
 import { getLatestConfirmation, writeConfirmation } from '../storage/confirmations';
-import { getPageConfig, savePageConfig, type PageConfigRecord } from '../storage/configs';
-import { appendAuditEntry } from '../storage/audit';
+import { getPageConfig, saveConfigWithAudit, type PageConfigRecord } from '../storage/configs';
 import {
   readPageAsUser,
   resolveSpaceKey,
@@ -41,7 +40,7 @@ import {
 } from './auth';
 import { getDashboardRows } from './dashboard';
 import { getPageDetail, getPageHistory } from './pageDetail';
-import { startExport } from './export';
+import { exportFile } from './export';
 import { getSettingsForAdmin, saveSettingsForAdmin } from './settings';
 import { APP_VERSION } from '../version';
 
@@ -222,8 +221,11 @@ export function registerResolvers(resolver: Resolver): void {
         counters: existing?.counters ?? { confirmedCurrentVersion: 0 },
       };
 
-      await savePageConfig(updated);
-      await appendAuditEntry({
+      // One transaction (storage/configs.ts) — a config write must never
+      // persist unaudited (data model §2.4): if the audit write throws, the
+      // config change must not stick either. Same guarantee the confirm path
+      // already gets from writeConfirmation's transaction.
+      await saveConfigWithAudit(updated, {
         pageId,
         at: nowIso,
         actor: accountId,
@@ -306,10 +308,10 @@ export function registerResolvers(resolver: Resolver): void {
     }
   });
 
-  resolver.define<StartExportPayload, Result<StartExportResponse>>('startExport', async (request) => {
+  resolver.define<ExportFilePayload, Result<ExportFileResponse>>('exportFile', async (request) => {
     try {
       const accountId = requireAccountId(request);
-      return await startExport(request.payload, accountId);
+      return await exportFile(request.payload, accountId);
     } catch (error) {
       return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
     }
