@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy &amp; Security Policy — Attestly</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 5rem;
+    line-height: 1.6;
+    color: #172B4D;
+    background: #FAFBFC;
+  }
+  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.25rem; margin-top: 2.5rem; border-top: 1px solid #DFE1E6; padding-top: 1.5rem; }
+  .meta { color: #5E6C84; font-size: 0.9rem; margin-bottom: 2rem; }
+  .meta a { color: #0052CC; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border: 1px solid #DFE1E6; vertical-align: top; }
+  th { background: #F4F5F7; }
+  code { background: #F4F5F7; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.9em; }
+  a { color: #0052CC; }
+  .badge {
+    display: inline-block; background: #E3FCEF; color: #006644;
+    padding: 0.15rem 0.6rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<!-- Source: docs/10_security_statement.md + docs/11_privacy_policy.md in the main Attestly
+     repo (T15). Mirror changes there first, see README.md in this repo. Per docs/11's own
+     note: this is the factual basis for the policy, not yet reviewed/countersigned by the
+     listing's legal/business owner. -->
+
+<span class="badge">Attestly for Confluence</span>
+<h1>Privacy &amp; Security Policy</h1>
+<p class="meta">
+  Last updated: July 12, 2026 · Published at
+  <a href="https://ugurdogan8.github.io/attestly/">https://ugurdogan8.github.io/attestly/</a>
+</p>
+
+<h2>1. Overview</h2>
+<p>
+  Attestly is an Atlassian Forge app for Confluence Cloud that lets teams confirm employees
+  have read and understood important pages (policies, SOPs, security guidelines) and produces
+  an audit trail for compliance purposes (e.g. ISO 27001, SOC 2, HIPAA readiness).
+</p>
+<p>
+  Attestly runs entirely on Atlassian Forge: all compute is Forge FaaS, all data lives in Forge
+  storage (KVS), and the app makes <strong>zero requests to any host outside Atlassian's own
+  APIs</strong>. There is no external server, no external database, and no third party ever sees
+  Confluence content or confirmation records. All data stays inside your Atlassian cloud site's
+  Forge storage, hosted by Atlassian in the same data residency region as your Confluence site.
+</p>
+
+<h2>2. Data We Store and Why</h2>
+<table>
+  <tr><th>Data</th><th>Where</th><th>Purpose</th></tr>
+  <tr>
+    <td>Atlassian <code>accountId</code> (pseudonymous identifier — not email or name)</td>
+    <td>Confirmation and configuration-change records</td>
+    <td>Records who confirmed what page version, when — the product's entire purpose</td>
+  </tr>
+  <tr>
+    <td>Confirmation timestamp (UTC)</td>
+    <td>Confirmation records</td>
+    <td>When the confirmation happened</td>
+  </tr>
+  <tr>
+    <td>Page ID, space key, page version</td>
+    <td>Confirmation and page-assignment records</td>
+    <td>What was confirmed, and at which version</td>
+  </tr>
+  <tr>
+    <td>Assignment configuration (assigned users/groups, due date, re-confirm setting)</td>
+    <td>Page-assignment records</td>
+    <td>Who is required to confirm, and by when</td>
+  </tr>
+  <tr>
+    <td>Configuration change history (who changed an assignment, when)</td>
+    <td>Append-only audit log</td>
+    <td>Accountability for who set up a requirement</td>
+  </tr>
+  <tr>
+    <td>App-wide settings (compliance-managers group, defaults)</td>
+    <td>Settings record</td>
+    <td>Admin configuration, not personal data about end users beyond a group id</td>
+  </tr>
+</table>
+<p>
+  <strong>What Attestly does <em>not</em> store:</strong> display names, email addresses, page
+  content/body text, or any other profile attribute. Names are resolved <strong>on demand</strong>,
+  at render/export time, directly from Confluence's own user API — never persisted. A name change
+  in Confluence is reflected immediately everywhere in Attestly, and Attestly's own storage
+  contains nothing an attacker could use to build a name↔identity mapping beyond what Confluence
+  itself already exposes to the same viewer.
+</p>
+
+<h2>3. How the App Uses Your Data</h2>
+<ul>
+  <li><strong>Confirmation records</strong> render the "read and confirmed" status on the page
+    byline, the admin dashboard, and the page drill-down, and feed the CSV/PDF audit export.</li>
+  <li><strong>No comments, no emails, no messages are ever posted by the app.</strong> Attestly
+    requests zero write scopes of any kind — it cannot create, edit, or delete Confluence
+    content, comments, or permissions.</li>
+</ul>
+
+<h2>4. Data Sharing</h2>
+<p>
+  We do not sell, rent, or share your data with any third party. The app makes no network calls
+  to anything other than Atlassian's own Confluence REST APIs (via Forge's <code>asUser()</code>/
+  <code>asApp()</code>) and Forge's own KVS storage — there is no raw network client anywhere in
+  this codebase, and <code>manifest.yml</code>'s <code>permissions.external</code> is never
+  populated.
+</p>
+
+<h2>5. Permissions (Scopes) Requested and Why</h2>
+<table>
+  <tr><th>Scope</th><th>Why the app needs it</th></tr>
+  <tr><td><code>storage:app</code></td><td>KVS custom entities — the app's entire datastore</td></tr>
+  <tr><td><code>read:page:confluence</code></td><td>Server-authoritative page version + title — proof of exactly which version a user viewed</td></tr>
+  <tr><td><code>read:user:confluence</code></td><td>Display-name resolution at render/export time; also the Confluence-admin check that gates the settings page</td></tr>
+  <tr><td><code>read:group:confluence</code></td><td>Resolves group membership for page assignments and the compliance-managers group</td></tr>
+  <tr><td><code>read:content.permission:confluence</code></td><td>"Can this other user view this page" checks, and deleted-vs-restricted-page disambiguation</td></tr>
+</table>
+<p>
+  That is the complete list — five scopes, all read/storage, zero <code>write:*</code> scopes,
+  no <code>read:space</code>, no access to Jira or any admin/user-management API beyond the
+  per-user checks above.
+</p>
+
+<h2>6. No Inbound HTTP Endpoints</h2>
+<p>
+  Attestly declares <strong>zero Forge webtriggers</strong>. Every feature, including the audit
+  export, is called through Forge's own authenticated <code>invoke()</code> bridge, running under
+  the requesting user's own session. There is no separate token, shared secret, or standalone URL
+  for anything in this app — a continuously enforced guard in the app's own test suite fails the
+  build if a webtrigger is ever added back.
+</p>
+
+<h2>7. Legal Basis and Retention Rationale</h2>
+<p>
+  Attestly's core function — proving who acknowledged what, when — is a compliance record. Its
+  value is retention, not deletion-on-request: an organization using Attestly for policy sign-off
+  needs that record to remain intact even after the confirming employee leaves. This is a
+  legitimate-interest basis (GDPR Art. 6(1)(f)): the data subject's own action (clicking confirm)
+  created the record, and its retention serves the same compliance purpose the confirmation was
+  requested for.
+</p>
+
+<h2>8. Account Closure / Erasure</h2>
+<p>
+  When an Atlassian account is closed or a user is deactivated:
+</p>
+<ul>
+  <li>The confirmation record is retained — deleting it would destroy the compliance evidence it
+    exists to provide.</li>
+  <li>The name is no longer shown. Since Attestly never stores the name in the first place, a
+    closed account simply fails to resolve: the UI renders <code>[deleted user]</code> or
+    <code>[deactivated]</code> instead of a name, everywhere a name would otherwise appear. The
+    <code>accountId</code> itself — a pseudonymous platform identifier — remains in the record.</li>
+  <li>If a data subject wants their <code>accountId</code> itself removed from historical records,
+    route that request through Atlassian's account-level personal-data tooling; Attestly's stance
+    is that the confirmation <em>event</em> is retained as compliance evidence, consistent with
+    the legitimate-interest basis above.</li>
+</ul>
+
+<h2>9. Retention and Uninstall</h2>
+<ul>
+  <li><strong>No automatic expiry while installed.</strong> Confirmation records persist
+    indefinitely by design. Admins can export the full history at any time.</li>
+  <li><strong>Uninstalling the app soft-deletes all Forge-hosted data</strong>, subject to
+    Atlassian's standard 28-day retention window. Reinstalling within that window starts with
+    empty storage — Attestly does not itself hold a separate backup. Recovery of pre-uninstall
+    data requires a support request to Atlassian within 21 days, with the customer's consent.</li>
+  <li><strong>Export before you uninstall</strong> if you need to keep the record outside Forge
+    storage — CSV and PDF exports are the supported way to retain evidence beyond the app's own
+    lifecycle.</li>
+</ul>
+
+<h2>10. Data Residency</h2>
+<p>
+  Attestly's storage is Forge KVS, which inherits its residency from the Confluence site's own
+  Forge storage realm — Attestly does not choose or configure a region independently, and does
+  not replicate data to any region or provider outside what Forge itself uses for that site.
+  Customers enrolled in Atlassian's Data Residency program get whatever residency guarantee that
+  program provides for Forge apps on their site.
+</p>
+
+<h2>11. What's Out of Scope for v1 (Disclosed, Not Hidden)</h2>
+<p>
+  Reminders and re-confirmation-on-edit notifications are deferred to a future release, gated
+  behind a rolling re-consent flow when they ship — v1 never requests any write/comment scope,
+  and status is computed from page versions already visible under <code>read:page:confluence</code>.
+</p>
+
+<h2>12. Children's Data</h2>
+<p>
+  This app is a workplace compliance tool intended for use by employees within an organization's
+  Confluence site. It is not directed at children and we do not knowingly collect data from
+  children.
+</p>
+
+<h2>13. Changes to This Policy</h2>
+<p>
+  We may update this policy as the app evolves. Material changes will be reflected here with an
+  updated "Last updated" date.
+</p>
+
+<h2>14. Contact</h2>
+<p>
+  Questions about this policy or your data:
+  <a href="mailto:ugur.do808@gmail.com">ugur.do808@gmail.com</a>
+</p>
+
+</body>
+</html>
