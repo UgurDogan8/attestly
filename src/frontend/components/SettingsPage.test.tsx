@@ -7,15 +7,18 @@ import { SettingsPage } from './SettingsPage';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
-  router: { navigate: jest.fn() },
+  router: { navigate: jest.fn(), getUrl: jest.fn() },
+  NavigationTarget: { Module: 'module' },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
-  router: { navigate: jest.Mock };
+  router: { navigate: jest.Mock; getUrl: jest.Mock };
 };
+
+const EXPORT_PAGE_URL = 'https://example.atlassian.net/wiki/apps/app-id/env-id/read-confirmations-export';
 
 function extractText(node: unknown): string {
   if (node === null || node === undefined || typeof node === 'boolean') {
@@ -54,6 +57,7 @@ async function mount(): Promise<ReactTestRenderer> {
 beforeEach(() => {
   jest.clearAllMocks();
   bridge.view.getContext.mockResolvedValue({ locale: 'en' });
+  bridge.router.getUrl.mockResolvedValue(new URL(EXPORT_PAGE_URL));
 });
 
 function settingsData(overrides: Record<string, unknown> = {}) {
@@ -177,7 +181,9 @@ describe('SettingsPage — export all data (revised post-PR-review to the Custom
 
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
+      await Promise.resolve();
     });
-    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export');
+    expect(bridge.router.getUrl).toHaveBeenCalledWith({ target: 'module', moduleKey: 'acknowledge-export', spaceKey: undefined });
+    expect(bridge.router.navigate).toHaveBeenCalledWith(EXPORT_PAGE_URL);
   });
 });

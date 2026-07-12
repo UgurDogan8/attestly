@@ -46,9 +46,9 @@ forge install --upgrade -e staging   # first time on a given site: forge install
 Manual smoke check on the staging site before promoting further (docs/08 §H, manual-E2E items
 not covered by Jest):
 
-- **TC-H3** — fresh install prompts exactly the five scopes in docs/07 §6 (`storage:app`,
+- **TC-H3** — fresh install prompts exactly the six scopes in docs/07 §6 (`storage:app`,
   `read:page:confluence`, `read:user:confluence`, `read:group:confluence`,
-  `read:content.permission:confluence`) — no more, no fewer.
+  `read:content.permission:confluence`, `read:content-details:confluence`) — no more, no fewer.
 - **TC-H4** — uninstall → reinstall on the staging site: macro reopens to a fresh setup state, no
   crash, storage is empty (28-day soft-delete window noted in the uninstall copy,
   `settings.lifecycle.body`).

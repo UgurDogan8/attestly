@@ -8,15 +8,18 @@ import type { GetPageDetailResponse, DetailUserRow } from '../../shared';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
-  router: { navigate: jest.fn() },
+  router: { navigate: jest.fn(), getUrl: jest.fn() },
+  NavigationTarget: { Module: 'module' },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
-  router: { navigate: jest.Mock };
+  router: { navigate: jest.Mock; getUrl: jest.Mock };
 };
+
+const EXPORT_PAGE_URL = 'https://example.atlassian.net/wiki/apps/app-id/env-id/read-confirmations-export';
 
 function extractText(node: unknown): string {
   if (node === null || node === undefined || typeof node === 'boolean') {
@@ -85,6 +88,7 @@ async function mount(pageId = 'page-1'): Promise<ReactTestRenderer> {
 beforeEach(() => {
   jest.clearAllMocks();
   bridge.view.getContext.mockResolvedValue({ locale: 'en' });
+  bridge.router.getUrl.mockResolvedValue(new URL(EXPORT_PAGE_URL));
 });
 
 describe('PageDetail — loading and error states', () => {
@@ -202,8 +206,10 @@ describe('PageDetail — export (T11, revised post-PR-review to the Custom UI ex
 
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
+      await Promise.resolve();
     });
-    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export?pageId=page-1');
+    expect(bridge.router.getUrl).toHaveBeenCalledWith({ target: 'module', moduleKey: 'acknowledge-export', spaceKey: undefined });
+    expect(bridge.router.navigate).toHaveBeenCalledWith(`${EXPORT_PAGE_URL}?pageId=page-1`);
   });
 });
 

@@ -9,6 +9,12 @@ import { defineConfig } from 'vite';
  * exception as narrow as possible.
  */
 export default defineConfig({
+  // Forge serves Custom UI resources from a CDN path prefix, not domain
+  // root — an absolute `base` (Vite's default) produces a `<script src="/assets/...">`
+  // that 404s silently in the Forge iframe (confirmed live, 2026-07-12: zero
+  // console errors, zero bridge network calls, just a blank page). Relative
+  // paths resolve correctly regardless of the mount path.
+  base: './',
   build: {
     outDir: 'build',
     emptyOutDir: true,

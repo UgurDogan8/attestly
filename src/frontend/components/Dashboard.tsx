@@ -4,10 +4,11 @@ import {
   Button,
   DynamicTable,
   EmptyState,
-  Heading,
+  Icon,
   Inline,
   LinkButton,
   LoadingButton,
+  Lozenge,
   ProgressBar,
   Select,
   Spinner,
@@ -15,9 +16,11 @@ import {
   Text,
   Textfield,
   Tooltip,
+  xcss,
 } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
+import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
 import type { GetDashboardPayload, GetDashboardResponse, DashboardRow, StatusFilter } from '../../shared';
@@ -37,6 +40,21 @@ import type { GetDashboardPayload, GetDashboardResponse, DashboardRow, StatusFil
  */
 
 const STATUS_FILTER_DEBOUNCE_MS = 400;
+
+const toolbarStyles = xcss({ borderRadius: 'radius.medium' });
+const filterIconStyles = xcss({ paddingInlineStart: 'space.050' });
+
+/**
+ * `resolveSpaceKey()` (auth.ts) falls back to the raw numeric `spaceId` when
+ * it can't resolve a real key (no space-read scope is requested — a
+ * deliberate scope-minimization tradeoff, docs/07 §6). Real Confluence space
+ * keys always start with a letter, so an all-digits value is always that
+ * fallback, never a genuine key — shown as an unresolved placeholder instead
+ * of a number that looks like a real (but wrong) key.
+ */
+function isUnresolvedSpaceKey(spaceKey: string): boolean {
+  return /^\d+$/.test(spaceKey);
+}
 
 interface StatusOption {
   label: string;
@@ -169,31 +187,52 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
         key: 'page',
         content: (() => {
           const label = row.deleted ? t('dashboard.deletedPage', { id: row.pageId }) : row.title;
-          return onOpenPage ? <LinkButton onClick={() => onOpenPage(row.pageId)}>{label}</LinkButton> : label;
+          const titleNode = onOpenPage ? <LinkButton onClick={() => onOpenPage(row.pageId)}>{label}</LinkButton> : label;
+          if (!row.deleted) {
+            return titleNode;
+          }
+          return (
+            <Inline space="space.100" alignBlock="center">
+              <Icon glyph="delete" label="" color="color.icon.subtle" size="small" />
+              {titleNode}
+            </Inline>
+          );
         })(),
       },
-      { key: 'space', content: row.spaceKey },
-      { key: 'assigned', content: String(row.assignedCount) },
+      {
+        key: 'space',
+        content: isUnresolvedSpaceKey(row.spaceKey) ? (
+          <Tooltip content={t('dashboard.spaceUnresolvedTooltip')}>
+            <Text color="color.text.subtle">—</Text>
+          </Tooltip>
+        ) : (
+          <Lozenge appearance="default">{row.spaceKey}</Lozenge>
+        ),
+      },
+      { key: 'assigned', content: <Text>{String(row.assignedCount)}</Text> },
       {
         key: 'percent',
         content:
           row.percent.kind === 'none' ? (
             <Tooltip content={t('dashboard.voluntaryTooltip')}>
-              <Text>—</Text>
+              <Text color="color.text.subtle">—</Text>
             </Tooltip>
           ) : (
-            <ProgressBar value={row.percent.percent} ariaLabel={`${Math.round(row.percent.percent * 100)}%`} />
+            <Stack space="space.025">
+              <Text>{`${Math.round(row.percent.percent * 100)}%`}</Text>
+              <ProgressBar value={row.percent.percent} ariaLabel={`${Math.round(row.percent.percent * 100)}%`} />
+            </Stack>
           ),
       },
       {
         key: 'due',
         content: row.dueDate ? (
-          <Text color={row.overdue ? 'color.text.danger' : undefined}>
-            {row.overdue ? '⚠ ' : ''}
-            {formatLocalDate(row.dueDate)}
-          </Text>
+          <Inline space="space.100" alignBlock="center">
+            <Text color={row.overdue ? 'color.text.danger' : undefined}>{formatLocalDate(row.dueDate)}</Text>
+            {row.overdue ? <Lozenge appearance="danger">{t('dashboard.overdueBadge')}</Lozenge> : null}
+          </Inline>
         ) : (
-          '—'
+          <Text color="color.text.subtle">—</Text>
         ),
       },
     ],
@@ -201,34 +240,45 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
 
   return (
     <Stack space="space.200">
-      <Inline space="space.200" alignBlock="center" spread="space-between">
-        <Heading size="medium">{t('dashboard.title')}</Heading>
-        <Button onClick={() => openExportPage({ spaceKey: spaceKeyInput || undefined })}>{t('dashboard.export')}</Button>
-      </Inline>
+      <SurfaceHeader
+        icon="shield"
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
+        action={
+          <Button iconBefore="export" onClick={() => openExportPage({ spaceKey: spaceKeyInput || undefined })}>
+            {t('dashboard.export')}
+          </Button>
+        }
+      />
 
-      <Inline space="space.200" alignBlock="center">
-        <Textfield
-          placeholder={t('dashboard.filter.space.placeholder')}
-          value={spaceKeyInput}
-          onChange={(e: unknown) => {
-            const value = typeof e === 'string' ? e : ((e as { target?: { value?: string } })?.target?.value ?? '');
-            handleSpaceInputChange(value);
-          }}
-        />
-        <Select
-          value={statusOptions.find((o) => o.value === statusFilter)}
-          options={statusOptions}
-          onChange={(option: unknown) => {
-            const next = (option as StatusOption | null)?.value;
-            if (next) {
-              handleStatusFilterChange(next);
-            }
-          }}
-        />
-      </Inline>
+      <Box backgroundColor="color.background.neutral.subtle" padding="space.150" xcss={toolbarStyles}>
+        <Inline space="space.200" alignBlock="center">
+          <Box xcss={filterIconStyles}>
+            <Icon glyph="filter" label="" color="color.icon.subtle" size="small" />
+          </Box>
+          <Textfield
+            placeholder={t('dashboard.filter.space.placeholder')}
+            value={spaceKeyInput}
+            onChange={(e: unknown) => {
+              const value = typeof e === 'string' ? e : ((e as { target?: { value?: string } })?.target?.value ?? '');
+              handleSpaceInputChange(value);
+            }}
+          />
+          <Select
+            value={statusOptions.find((o) => o.value === statusFilter)}
+            options={statusOptions}
+            onChange={(option: unknown) => {
+              const next = (option as StatusOption | null)?.value;
+              if (next) {
+                handleStatusFilterChange(next);
+              }
+            }}
+          />
+        </Inline>
+      </Box>
 
       {rows.length === 0 ? (
-        <Text>{t('dashboard.filter.noResults')}</Text>
+        <EmptyState header={t('dashboard.filter.noResults')} />
       ) : (
         <DynamicTable head={head} rows={tableRows} isLoading={dashboardInvoke.loading && rows.length === 0} />
       )}

@@ -46,8 +46,10 @@ export const tr: Record<MessageKey, string> = {
   'config.dueDate': 'Son tarih',
   'config.reconfirm': 'Sayfa değiştiğinde yeniden onay iste',
   'config.voluntaryNote': 'Zorunlu okuyucu yok — onaylar gönüllü olacaktır.',
+  'config.error.title': 'Bu ayarlar kaydedilemedi',
 
   'dashboard.title': 'Okuma onayları',
+  'dashboard.subtitle': 'Her sayfayı kimin okuduğunu onayladığını, kimin hâlâ beklemede olduğunu takip edin.',
   'dashboard.export': 'Dışa aktar',
   'dashboard.filter.space.all': 'Tüm alanlar',
   'dashboard.filter.space.placeholder': 'Alan anahtarına göre filtrele…',
@@ -63,6 +65,8 @@ export const tr: Record<MessageKey, string> = {
   'dashboard.col.percent': '%',
   'dashboard.col.due': 'Son tarih',
   'dashboard.voluntaryTooltip': 'Yalnızca gönüllü sayfa — zorunlu okuyucu yok.',
+  'dashboard.spaceUnresolvedTooltip': 'Bu sayfa için alan anahtarı çözülemedi.',
+  'dashboard.overdueBadge': 'Gecikmiş',
   'dashboard.deletedPage': '[silinmiş sayfa {id}]',
   'dashboard.empty.header': 'Okuma onaylarını takip etmeye başlayın',
   'dashboard.empty.description':
@@ -73,6 +77,7 @@ export const tr: Record<MessageKey, string> = {
     'Bir Confluence yöneticisinden sizi uygulama ayarlarındaki uyum yöneticileri grubuna eklemesini isteyin.',
 
   'export.title': 'Onayları dışa aktar',
+  'export.subtitle': 'Okuma onayı kayıtlarını CSV veya PDF olarak indirin.',
   'export.format': 'Biçim',
   'export.format.csv': 'CSV',
   'export.format.pdf': 'PDF',
@@ -91,6 +96,7 @@ export const tr: Record<MessageKey, string> = {
   'export.spaceKey': 'Alan anahtarı',
 
   'detail.back': 'Kontrol paneline dön',
+  'detail.stat.assigned': 'Atanan',
   'detail.summary': '{assigned} atanandan {confirmed} onayladı · {outstanding} bekliyor · {cannotView} görüntüleyemiyor',
   'detail.tab.outstanding': 'Bekleyenler',
   'detail.tab.confirmed': 'Onaylayanlar',
@@ -116,7 +122,8 @@ export const tr: Record<MessageKey, string> = {
   'detail.deletedUser': 'silinmiş kullanıcı',
   'detail.staleGroups': 'Atanan bazı gruplar artık mevcut değil; üyeleri artık sayılmıyor.',
 
-  'settings.title': 'Okuma Onayı — ayarlar',
+  'settings.title': 'Attestly — ayarlar',
+  'settings.subtitle': 'Okuma onayı uygulaması için site geneli varsayılanlar, erişim ve veri dışa aktarımı.',
   'settings.managers': 'Uyum yöneticileri grubu',
   'settings.managers.hint':
     'Bu grubun üyeleri, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',

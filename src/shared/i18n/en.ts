@@ -48,8 +48,10 @@ export const en = {
   'config.dueDate': 'Due date',
   'config.reconfirm': 'Require re-confirmation when the page changes',
   'config.voluntaryNote': 'No required readers — confirmations will be voluntary.',
+  'config.error.title': "We couldn't save these settings",
 
   'dashboard.title': 'Read confirmations',
+  'dashboard.subtitle': 'Track who has confirmed reading each page, and who is still outstanding.',
   'dashboard.export': 'Export',
   'dashboard.filter.space.all': 'All spaces',
   'dashboard.filter.space.placeholder': 'Filter by space key…',
@@ -65,6 +67,8 @@ export const en = {
   'dashboard.col.percent': '%',
   'dashboard.col.due': 'Due',
   'dashboard.voluntaryTooltip': 'Voluntary-only page — no required readers.',
+  'dashboard.spaceUnresolvedTooltip': "Space key couldn't be resolved for this page.",
+  'dashboard.overdueBadge': 'Overdue',
   'dashboard.deletedPage': '[deleted page {id}]',
   'dashboard.empty.header': 'Start tracking read confirmations',
   'dashboard.empty.description':
@@ -75,6 +79,7 @@ export const en = {
     'Ask a Confluence admin to add you to the compliance managers group in the app settings.',
 
   'export.title': 'Export confirmations',
+  'export.subtitle': 'Download a CSV or PDF of read-confirmation records.',
   'export.format': 'Format',
   'export.format.csv': 'CSV',
   'export.format.pdf': 'PDF',
@@ -94,6 +99,7 @@ export const en = {
 
   'detail.back': 'Back to dashboard',
   'detail.summary': '{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',
+  'detail.stat.assigned': 'Assigned',
   'detail.tab.outstanding': 'Outstanding',
   'detail.tab.confirmed': 'Confirmed',
   'detail.tab.voluntary': 'Voluntary',
@@ -118,7 +124,8 @@ export const en = {
   'detail.deletedUser': 'deleted user',
   'detail.staleGroups': 'Some assigned groups no longer exist; their members are no longer counted.',
 
-  'settings.title': 'Read Confirmation — settings',
+  'settings.title': 'Attestly — settings',
+  'settings.subtitle': 'Site-wide defaults, access, and data export for the read confirmation app.',
   'settings.managers': 'Compliance managers group',
   'settings.managers.hint':
     'Members of this group can open the dashboard and export data without being Confluence admins.',

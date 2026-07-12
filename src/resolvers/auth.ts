@@ -144,11 +144,17 @@ interface CurrentUserResponse {
 
 /**
  * `GET /wiki/rest/api/user/current?expand=operations` (T13 — resolves the
- * admin-check residual T9's dashboard.ts docstring deferred). Scope
- * confirmed this task: `read:user:confluence` (granular) covers
- * `/wiki/rest/api/user/current` — already declared, no manifest change
- * needed; T9's guess that a *different*, undeclared scope was required was
- * wrong.
+ * admin-check residual T9's dashboard.ts docstring deferred).
+ *
+ * Scope: Atlassian's own REST API reference (Confluence Cloud, "Get current
+ * user" operation) lists the granular scope as `read:content-details:confluence`
+ * — NOT `read:user:confluence` as an earlier version of this comment
+ * claimed. That earlier claim was never checked against Atlassian's docs and
+ * was wrong: without `read:content-details:confluence` in manifest.yml, this
+ * call 403s for every caller (admin or not), so `isConfluenceAdmin()` always
+ * fails closed and nobody can reach settings — the live-site symptom that
+ * surfaced this. `read:content-details:confluence` is now declared in
+ * manifest.yml.
  *
  * What remains genuinely UNVERIFIED AGAINST A LIVE SITE (this file's
  * standing convention): the signal for *site-wide* admin is an

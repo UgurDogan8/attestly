@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Badge,
   Box,
   Button,
   DynamicTable,
-  Heading,
+  Icon,
   Inline,
   LinkButton,
   LoadingButton,
+  Lozenge,
   SectionMessage,
   Spinner,
   Stack,
@@ -17,9 +19,11 @@ import {
   Text,
   User,
 } from '@forge/react';
+import type { IconProps } from '@forge/react';
 import { useI18n } from './useI18n';
 import type { I18n } from './useI18n';
 import { useInvoke } from './useInvoke';
+import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDateTime, formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
 import type {
@@ -70,6 +74,10 @@ function assignmentLabel(t: I18n['t'], row: DetailUserRow): string {
   return t('detail.assignedViaGroup', { group: row.assignmentSource.groupName ?? t('detail.groupDeleted') });
 }
 
+function assignmentLozengeAppearance(row: DetailUserRow): 'default' | 'moved' {
+  return row.assignmentType === 'voluntary' || row.assignmentSource === null ? 'default' : 'moved';
+}
+
 /** History tab line (data model §2.4): one full localized sentence per diffed change. */
 function historyChangeText(t: I18n['t'], actorName: string, change: HistoryChangeView): string {
   if (change.kind === 'dueDate') {
@@ -77,6 +85,30 @@ function historyChangeText(t: I18n['t'], actorName: string, change: HistoryChang
   }
   const key = change.kind === 'assigned' ? 'detail.history.assigned' : 'detail.history.removed';
   return t(key, { actor: actorName, subject: change.subjectName });
+}
+
+/** One small icon per history change kind — a quick visual cue in an otherwise plain-text timeline. */
+function historyChangeIcon(change: HistoryChangeView): IconProps['glyph'] {
+  if (change.kind === 'dueDate') {
+    return 'calendar';
+  }
+  return change.kind === 'assigned' ? 'person-add' : 'person-remove';
+}
+
+interface StatChipProps {
+  icon: IconProps['glyph'];
+  label: string;
+  value: number;
+}
+
+function StatChip({ icon, label, value }: StatChipProps): React.JSX.Element {
+  return (
+    <Inline space="space.100" alignBlock="center">
+      <Icon glyph={icon} label="" color="color.icon.subtle" size="small" />
+      <Text color="color.text.subtle">{label}</Text>
+      <Badge>{value}</Badge>
+    </Inline>
+  );
 }
 
 interface UserRowsTableProps {
@@ -115,10 +147,10 @@ function UserRowsTable({ rows, showConfirmedColumns, currentVersion }: UserRowsT
       {
         key: 'assignment',
         content: (
-          <Stack space="space.025">
-            <Text>{assignmentLabel(t, row)}</Text>
+          <Stack space="space.050">
+            <Lozenge appearance={assignmentLozengeAppearance(row)}>{assignmentLabel(t, row)}</Lozenge>
             {row.status === 'expired' && row.pageVersion !== null && currentVersion !== null ? (
-              <Text>{t('detail.expiredNote', { oldVersion: row.pageVersion, newVersion: currentVersion })}</Text>
+              <Text color="color.text.subtle">{t('detail.expiredNote', { oldVersion: row.pageVersion, newVersion: currentVersion })}</Text>
             ) : null}
           </Stack>
         ),
@@ -208,18 +240,21 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
       <LinkButton appearance="link" onClick={onBack}>
         {t('detail.back')}
       </LinkButton>
-      <Inline space="space.200" alignBlock="center" spread="space-between">
-        <Heading size="medium">{title}</Heading>
-        <Button onClick={() => openExportPage({ pageId: data.pageId })}>{t('dashboard.export')}</Button>
+      <SurfaceHeader
+        icon="page"
+        title={title}
+        action={
+          <Button iconBefore="export" onClick={() => openExportPage({ pageId: data.pageId })}>
+            {t('dashboard.export')}
+          </Button>
+        }
+      />
+      <Inline space="space.300" alignBlock="center" shouldWrap>
+        <StatChip icon="people-group" label={t('detail.stat.assigned')} value={data.summary.assigned} />
+        <StatChip icon="check-mark" label={t('detail.tab.confirmed')} value={data.summary.confirmed} />
+        <StatChip icon="clock" label={t('detail.tab.outstanding')} value={data.summary.outstanding} />
+        <StatChip icon="lock-locked" label={t('detail.tab.cannotView')} value={data.summary.cannotView} />
       </Inline>
-      <Text>
-        {t('detail.summary', {
-          assigned: data.summary.assigned,
-          confirmed: data.summary.confirmed,
-          outstanding: data.summary.outstanding,
-          cannotView: data.summary.cannotView,
-        })}
-      </Text>
       {data.staleAssignedGroupIds.length > 0 ? (
         <SectionMessage appearance="warning">
           <Text>{t('detail.staleGroups')}</Text>
@@ -269,10 +304,13 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
             <Stack space="space.150">
               {historyEntries.map((entry, i) => (
                 // History has no stable id from the resolver; (at, actorName) can repeat within the same request batch.
-                <Stack key={`${entry.at}#${entry.actorName}#${i}`} space="space.025">
-                  <Text>{formatLocalDateTime(entry.at)}</Text>
+                <Stack key={`${entry.at}#${entry.actorName}#${i}`} space="space.050">
+                  <Text color="color.text.subtle">{formatLocalDateTime(entry.at)}</Text>
                   {entry.changes.map((change, j) => (
-                    <Text key={j}>{historyChangeText(t, entry.actorName, change)}</Text>
+                    <Inline key={j} space="space.100" alignBlock="center">
+                      <Icon glyph={historyChangeIcon(change)} label="" color="color.icon.subtle" size="small" />
+                      <Text>{historyChangeText(t, entry.actorName, change)}</Text>
+                    </Inline>
                   ))}
                 </Stack>
               ))}

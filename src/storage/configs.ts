@@ -29,8 +29,41 @@ export interface PageConfigRecord {
   counters: PageConfigCounters;
 }
 
+/**
+ * manifest.yml declares `dueDate: type: string` on the `page-config` entity
+ * (no nullable/optional marker — Forge's Custom Entity Store has none to
+ * declare). `PageConfigRecord.dueDate` is `string | null` throughout the
+ * domain ("no due date set" is a real, common case — voluntary tracking).
+ * Confirmed live (2026-07-12, ugurdogan.atlassian.net dev site) in two
+ * steps: a bare `null` write threw a generic wrapped error ("Request
+ * cannot be processed due to one or more semantic errors") from inside a
+ * transaction; writing `''` instead, outside a transaction, got a precise
+ * one straight from the Custom Entity Store — `Value for attribute
+ * "dueDate" cannot be empty`. So `type: string` here means "non-empty
+ * string or entirely absent", not "nullable" — there is no representable
+ * empty value, only omission. `toStorableConfig` drops the key from the
+ * written object when there's no due date instead of writing `null`/`''`;
+ * `fromStorableDueDate` maps the resulting absent/undefined key back to
+ * `null` on read. Every caller of `getPageConfig`/`savePageConfig`/
+ * `saveConfigWithAudit` keeps seeing plain `string | null`, unchanged.
+ * `toStorableConfig` is exported because storage/confirmations.ts's
+ * counter-bump also writes a whole `PageConfigRecord` straight into a
+ * transaction (bumpConfirmedCounter) and needs the same treatment there.
+ */
+type StorablePageConfig = Omit<PageConfigRecord, 'dueDate'> & { dueDate?: string };
+
+export function toStorableConfig(config: PageConfigRecord): StorablePageConfig {
+  const { dueDate, ...rest } = config;
+  return dueDate === null ? rest : { ...rest, dueDate };
+}
+
+function fromStorableDueDate(record: PageConfigRecord): PageConfigRecord {
+  return record.dueDate ? record : { ...record, dueDate: null };
+}
+
 export async function getPageConfig(pageId: string): Promise<PageConfigRecord | undefined> {
-  return kvs.entity<PageConfigRecord>(ENTITY.pageConfig).get(pageConfigKey(pageId));
+  const record = await kvs.entity<PageConfigRecord>(ENTITY.pageConfig).get(pageConfigKey(pageId));
+  return record ? fromStorableDueDate(record) : undefined;
 }
 
 /**
@@ -41,7 +74,7 @@ export async function getPageConfig(pageId: string): Promise<PageConfigRecord | 
  * (storage/audit.ts) — this function only persists the config itself.
  */
 export async function savePageConfig(config: PageConfigRecord): Promise<void> {
-  await kvs.entity<PageConfigRecord>(ENTITY.pageConfig).set(pageConfigKey(config.pageId), config);
+  await kvs.entity<StorablePageConfig>(ENTITY.pageConfig).set(pageConfigKey(config.pageId), toStorableConfig(config));
 }
 
 /**
@@ -54,7 +87,7 @@ export async function savePageConfig(config: PageConfigRecord): Promise<void> {
  */
 export async function saveConfigWithAudit(config: PageConfigRecord, audit: ConfigAuditRecord): Promise<void> {
   const tx = kvs.transact();
-  tx.set(pageConfigKey(config.pageId), config, { entityName: ENTITY.pageConfig });
+  tx.set(pageConfigKey(config.pageId), toStorableConfig(config), { entityName: ENTITY.pageConfig });
   tx.set(configAuditKey(audit.pageId, audit.at, randomUUID()), audit, { entityName: ENTITY.configAudit });
   await tx.execute();
 }
@@ -101,7 +134,7 @@ export function queryTrackedPage(
     q = q.cursor(cursor);
   }
   return q.getMany().then((page) => ({
-    results: page.results.map((r) => r.value),
+    results: page.results.map((r) => fromStorableDueDate(r.value)),
     nextCursor: page.nextCursor,
   }));
 }

@@ -1,7 +1,7 @@
 import kvs, { Sort } from '@forge/kvs';
 import type { ConfirmationRecord } from '../domain/confirm';
 import { ENTITY, confirmationKey, pageConfigKey } from './entities';
-import { getPageConfig, bumpConfirmedCounter } from './configs';
+import { getPageConfig, bumpConfirmedCounter, toStorableConfig } from './configs';
 import { drainPages, MAX_PAGE_SIZE, type CursorPage } from './pagination';
 
 export interface WriteConfirmationResult {
@@ -40,7 +40,7 @@ export async function writeConfirmation(record: ConfirmationRecord): Promise<Wri
   const tx = kvs.transact();
   tx.set(key, record, { entityName: ENTITY.confirmation });
   if (config) {
-    tx.set(pageConfigKey(record.pageId), bumpConfirmedCounter(config), { entityName: ENTITY.pageConfig });
+    tx.set(pageConfigKey(record.pageId), toStorableConfig(bumpConfirmedCounter(config)), { entityName: ENTITY.pageConfig });
   }
   await tx.execute();
 

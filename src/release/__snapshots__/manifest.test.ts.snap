@@ -7,5 +7,6 @@ exports[`manifest release guards TC-H1: scope snapshot — any PR touching permi
   "read:user:confluence",
   "read:group:confluence",
   "read:content.permission:confluence",
+  "read:content-details:confluence",
 ]
 `;

@@ -1,0 +1,342 @@
+/*
+ * Export Custom UI styling (docs/07 §5). This iframe is cross-origin from
+ * the rest of Confluence, so it never inherits Confluence's own CSS or
+ * theme attributes automatically -- `view.theme.enable()` (main.ts) makes
+ * the host inject `@atlaskit/tokens`' CSS custom properties (`--ds-*`) into
+ * this document to match the viewer's actual Confluence theme (light/dark/
+ * auto), which can differ from the OS theme. Every color below reads a
+ * `--ds-*` token first; the fallback after the comma is a plain light-theme
+ * value used only until that stylesheet loads (or if it never does), with
+ * a `prefers-color-scheme: dark` block covering that same brief/degraded
+ * window for OS-dark users.
+ */
+
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ds-text, #172b4d);
+  background: var(--ds-surface, #ffffff);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: var(--ds-text, #b6c2cf);
+    background: var(--ds-surface, #1d2125);
+  }
+}
+
+.export-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 24px 56px;
+}
+
+.export-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.export-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--ds-background-brand-bold, #0c66e4);
+  color: var(--ds-text-inverse, #ffffff);
+}
+
+.export-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.export-heading h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ds-text, #172b4d);
+}
+
+.export-heading p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ds-text-subtle, #626f86);
+}
+
+.export-card {
+  border: 1px solid var(--ds-border, #dcdfe4);
+  border-radius: 12px;
+  background: var(--ds-surface-raised, #ffffff);
+  box-shadow: var(--ds-shadow-raised, 0 1px 1px rgba(9, 30, 66, 0.08));
+  padding: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .export-card {
+    background: var(--ds-surface-raised, #22272b);
+    border-color: var(--ds-border, #38414a);
+  }
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field--full {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ds-text-subtle, #44546f);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.field-static {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 14px;
+  color: var(--ds-text, #172b4d);
+  background: var(--ds-background-neutral, #f1f2f4);
+  border-radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .field-static {
+    background: var(--ds-background-neutral, #2c333a);
+  }
+}
+
+select,
+input[type='text'],
+input[type='date'] {
+  appearance: none;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ds-text, #172b4d);
+  background: var(--ds-background-input, #ffffff);
+  border: 1.5px solid var(--ds-border-input, #dcdfe4);
+  border-radius: 6px;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  select,
+  input[type='text'],
+  input[type='date'] {
+    color: var(--ds-text, #b6c2cf);
+    background: var(--ds-background-input, #22272b);
+    border-color: var(--ds-border-input, #454f59);
+  }
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2344546f' d='M1.4.6 6 5.2 10.6.6 12 2 6 8 0 2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+select:hover,
+input[type='text']:hover,
+input[type='date']:hover {
+  border-color: var(--ds-border-bold, #a1bdd914);
+}
+
+select:focus-visible,
+input[type='text']:focus-visible,
+input[type='date']:focus-visible {
+  outline: none;
+  border-color: var(--ds-border-focused, #388bff);
+  box-shadow: 0 0 0 1px var(--ds-border-focused, #388bff);
+}
+
+input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-range .date-sep {
+  flex: none;
+  color: var(--ds-text-subtle, #8590a2);
+  font-size: 13px;
+}
+
+.date-range input {
+  flex: 1;
+  min-width: 0;
+}
+
+.export-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ds-border, #dcdfe4);
+}
+
+@media (prefers-color-scheme: dark) {
+  .export-actions {
+    border-color: var(--ds-border, #38414a);
+  }
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ds-text-inverse, #ffffff);
+  background: var(--ds-background-brand-bold, #0c66e4);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    transform 0.05s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--ds-background-brand-bold-hovered, #0055cc);
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--ds-background-brand-bold-pressed, #09326c);
+  transform: translateY(1px);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--ds-border-focused, #388bff);
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled {
+  cursor: not-allowed;
+  background: var(--ds-background-disabled, #091e4224);
+  color: var(--ds-text-disabled, #091e424f);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-primary:disabled {
+    background: var(--ds-background-disabled, #a1bdd914);
+    color: var(--ds-text-disabled, #626f8657);
+  }
+}
+
+.btn-primary svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.btn-icon {
+  display: inline-flex;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.export-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ds-text-subtle, #626f86);
+  min-height: 20px;
+}
+
+.export-status svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.export-status--success {
+  color: var(--ds-text-success, #216e4e);
+}
+
+.export-status--error {
+  color: var(--ds-text-danger, #ae2e24);
+}
+
+@media (prefers-color-scheme: dark) {
+  .export-status--success {
+    color: var(--ds-text-success, #7ee2b8);
+  }
+  .export-status--error {
+    color: var(--ds-text-danger, #fd9891);
+  }
+}
+
+@media (max-width: 480px) {
+  .export-page {
+    padding: 24px 16px 40px;
+  }
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+}

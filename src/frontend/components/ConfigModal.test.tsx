@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { LoadingButton, Button, Select } from '@forge/react';
+import { LoadingButton, Button, Select, DatePicker } from '@forge/react';
 import { ConfigModal } from './ConfigModal';
 
 jest.mock('@forge/bridge', () => ({
@@ -85,6 +85,26 @@ describe('ConfigModal — load', () => {
     );
     const renderer = await mount();
     expect(extractText(renderer.toJSON())).not.toContain('confirmations will be voluntary');
+  });
+});
+
+describe('ConfigModal — due date field', () => {
+  it("passes '' (not undefined) to DatePicker when no due date is set, never a stray default", async () => {
+    bridge.invoke.mockImplementation((functionKey: string) =>
+      Promise.resolve(functionKey === 'getConfig' ? { ok: true, data: EMPTY_CONFIG } : { ok: true, data: [] }),
+    );
+    const renderer = await mount();
+    expect(renderer.root.findByType(DatePicker).props.defaultValue).toBe('');
+  });
+
+  it('passes the stored ISO date straight through when one is set', async () => {
+    bridge.invoke.mockImplementation((functionKey: string) =>
+      Promise.resolve(
+        functionKey === 'getConfig' ? { ok: true, data: { ...EMPTY_CONFIG, dueDate: '2026-07-31' } } : { ok: true, data: [] },
+      ),
+    );
+    const renderer = await mount();
+    expect(renderer.root.findByType(DatePicker).props.defaultValue).toBe('2026-07-31');
   });
 });
 

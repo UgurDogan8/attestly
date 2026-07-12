@@ -2,6 +2,7 @@ import { invoke, view } from '@forge/bridge';
 import { createTranslator, resolveLocale } from '../../../src/shared/i18n';
 import type { Translator } from '../../../src/shared/i18n';
 import type { ExportFilePayload, ExportFileResponse, ExportFormat, ExportScope, StatusFilter, Result } from '../../../src/shared/types';
+import './style.css';
 
 /**
  * The Custom UI export surface (docs/07 §5, post-PR-review revision) — the
@@ -18,11 +19,42 @@ import type { ExportFilePayload, ExportFileResponse, ExportFormat, ExportScope, 
  * from the T10 drill-down), `spaceKey` pre-fills scope "space" (opened from
  * the dashboard's own space filter). Neither present -> defaults to "site"
  * (opened from Settings' "Export all data").
+ *
+ * Verified live (2026-07-12): those query params can't be read from this
+ * document's own `window.location` — this Custom UI resource is rendered
+ * in a cross-origin iframe whose `src` is Forge's own opaque, pre-built
+ * `_ctx_...` CDN URL, which never carries the query string our own
+ * `router.navigate()` call appended to the *top-level* Confluence page URL.
+ * `window.location.search` inside this iframe only ever contains Forge's
+ * own `platformFeatureFlags` param, confirmed empty of `pageId`/`spaceKey`
+ * on a live site. The one place those params actually survive is
+ * `view.getContext()`'s `extension.location` field, which Forge populates
+ * with the *outer* page's full URL (confirmed live) — parsed below instead.
+ *
+ * `view.theme.enable()` (docs/07 §5 addendum, 2026-07-12 UI pass): this
+ * iframe is cross-origin from the rest of Confluence, so it never inherits
+ * Confluence's theme automatically the way UI Kit resources do. This makes
+ * the host inject `@atlaskit/tokens`' `--ds-*` CSS custom properties to
+ * match the viewer's actual Confluence theme (light/dark/auto, which can
+ * differ from the OS theme) — `style.css` reads those tokens with plain
+ * fallback values for the brief window before/if that stylesheet loads.
  */
 
-const params = new URLSearchParams(window.location.search);
-const fixedPageId = params.get('pageId') ?? undefined;
-const initialSpaceKey = params.get('spaceKey') ?? undefined;
+void view.theme.enable();
+
+/** `context.extension.location` (docs above) is the outer page's full URL, not this iframe's own. */
+function readScopeParams(context: { extension?: { location?: unknown } } | undefined): { fixedPageId?: string; initialSpaceKey?: string } {
+  const outerLocation = context?.extension?.location;
+  if (typeof outerLocation !== 'string') {
+    return {};
+  }
+  try {
+    const search = new URL(outerLocation).searchParams;
+    return { fixedPageId: search.get('pageId') ?? undefined, initialSpaceKey: search.get('spaceKey') ?? undefined };
+  } catch {
+    return {};
+  }
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, children: (Node | string)[] = []): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -35,6 +67,21 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLEl
 
 function option(value: string, label: string): HTMLOptionElement {
   return el('option', { value, textContent: label });
+}
+
+/** Inline SVGs kept tiny and dependency-free, matching the "no build-heavy addition" rule above. */
+const icons = {
+  download: '<path d="M8 1v8.5M8 9.5 4.5 6M8 9.5 11.5 6M2 12h12" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  check: '<path d="M3 8.5 6.2 12 13 3" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  alert:
+    '<circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M8 5v3.5M8 10.8v.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+} as const;
+
+function icon(name: keyof typeof icons): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.innerHTML = icons[name];
+  return svg;
 }
 
 function triggerDownload(filename: string, blob: Blob): void {
@@ -55,7 +102,11 @@ function downloadResponse(data: ExportFileResponse): void {
   triggerDownload(data.filename, new Blob([bytes], { type: 'application/pdf' }));
 }
 
-function render(t: Translator): void {
+function field(label: string, control: HTMLElement, opts: { full?: boolean } = {}): HTMLElement {
+  return el('div', { className: opts.full ? 'field field--full' : 'field' }, [el('label', { textContent: label }), control]);
+}
+
+function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey: string | undefined): void {
   const app = document.getElementById('app');
   if (!app) {
     return;
@@ -79,22 +130,38 @@ function render(t: Translator): void {
   const dateFromInput = el('input', { id: 'dateFrom', type: 'date' });
   const dateToInput = el('input', { id: 'dateTo', type: 'date' });
 
-  const status = el('p', { id: 'status' });
-  const startButton = el('button', { id: 'start', textContent: t('export.start') });
+  const statusText = el('span', {});
+  const status = el('div', { id: 'status', className: 'export-status', role: 'status' }, [statusText]);
+  const buttonIconSlot = el('span', { className: 'btn-icon' }, [icon('download')]);
+  const startButton = el('button', { id: 'start', className: 'btn-primary' }, [buttonIconSlot, t('export.start')]);
 
-  function scopeRow(): HTMLElement {
-    if (fixedPageId) {
-      return el('p', {}, [t('export.scope.page')]);
+  function setStatus(kind: 'idle' | 'progress' | 'success' | 'error', text: string): void {
+    status.className = kind === 'success' ? 'export-status export-status--success' : kind === 'error' ? 'export-status export-status--error' : 'export-status';
+    statusText.textContent = text;
+    const existingIcon = status.querySelector('svg');
+    existingIcon?.remove();
+    if (kind === 'success') {
+      status.prepend(icon('check'));
+    } else if (kind === 'error') {
+      status.prepend(icon('alert'));
     }
-    return el('div', {}, [
-      el('label', { textContent: t('export.scope') }),
-      scopeSelect,
-      spaceKeyInput,
-    ]);
+  }
+
+  function setButtonBusy(busy: boolean): void {
+    startButton.disabled = busy;
+    buttonIconSlot.replaceChildren(busy ? el('span', { className: 'spinner' }) : icon('download'));
+  }
+
+  function scopeField(): HTMLElement {
+    if (fixedPageId) {
+      return field(t('export.scope'), el('div', { className: 'field-static', textContent: t('export.scope.page') }));
+    }
+    return field(t('export.scope'), el('div', {}, [scopeSelect, spaceKeyInput]));
   }
 
   function updateSpaceFieldVisibility(): void {
     spaceKeyInput.style.display = !fixedPageId && scopeSelect.value === 'space' ? '' : 'none';
+    spaceKeyInput.style.marginTop = spaceKeyInput.style.display === 'none' ? '0' : '8px';
   }
   scopeSelect.addEventListener('change', updateSpaceFieldVisibility);
   updateSpaceFieldVisibility();
@@ -104,8 +171,8 @@ function render(t: Translator): void {
   });
 
   async function handleExport(): Promise<void> {
-    startButton.setAttribute('disabled', 'true');
-    status.textContent = t('export.progress');
+    setButtonBusy(true);
+    setStatus('progress', t('export.progress'));
 
     const scope: ExportScope = fixedPageId ? 'page' : (scopeSelect.value as ExportScope);
     const payload: ExportFilePayload = {
@@ -122,31 +189,44 @@ function render(t: Translator): void {
       // type) — same pattern and same "technically a {body,metadata} union"
       // caveat as src/frontend/components/useInvoke.ts.
       const result = (await invoke<Result<ExportFileResponse>>('exportFile', payload)) as Result<ExportFileResponse>;
-      startButton.removeAttribute('disabled');
+      setButtonBusy(false);
       if (!result.ok) {
-        status.textContent = result.message;
+        setStatus('error', result.message);
         return;
       }
       downloadResponse(result.data);
-      status.textContent = t('export.ready');
+      setStatus('success', t('export.ready'));
     } catch (thrown) {
-      startButton.removeAttribute('disabled');
-      status.textContent = thrown instanceof Error ? thrown.message : t('export.progress');
+      setButtonBusy(false);
+      setStatus('error', thrown instanceof Error ? thrown.message : t('export.progress'));
     }
   }
 
-  app.append(
-    el('h1', { textContent: t('export.title') }),
-    el('div', {}, [el('label', { textContent: t('export.format') }), formatSelect]),
-    scopeRow(),
-    el('div', {}, [el('label', { textContent: t('export.statusFilter') }), statusSelect]),
-    el('div', {}, [el('label', { textContent: t('export.dateRange') }), dateFromInput, dateToInput]),
-    startButton,
-    status,
-  );
+  const header = el('div', { className: 'export-header' }, [
+    el('div', { className: 'export-icon' }, [icon('download')]),
+    el('div', { className: 'export-heading' }, [el('h1', { textContent: t('export.title') }), el('p', { textContent: t('export.subtitle') })]),
+  ]);
+
+  const grid = el('div', { className: 'field-grid' }, [
+    field(t('export.format'), formatSelect),
+    scopeField(),
+    field(t('export.statusFilter'), statusSelect),
+    field(
+      t('export.dateRange'),
+      el('div', { className: 'date-range' }, [dateFromInput, el('span', { className: 'date-sep', textContent: '–' }), dateToInput]),
+      { full: true },
+    ),
+  ]);
+
+  const card = el('div', { className: 'export-card' }, [grid, el('div', { className: 'export-actions' }, [startButton, status])]);
+
+  app.append(el('div', { className: 'export-page' }, [header, card]));
 }
 
 view
   .getContext()
-  .then((context) => render(createTranslator(resolveLocale(context?.locale))))
-  .catch(() => render(createTranslator('en')));
+  .then((context) => {
+    const { fixedPageId, initialSpaceKey } = readScopeParams(context);
+    render(createTranslator(resolveLocale(context?.locale)), fixedPageId, initialSpaceKey);
+  })
+  .catch(() => render(createTranslator('en'), undefined, undefined));

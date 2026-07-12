@@ -54,7 +54,8 @@ and the v1/v1.1 split (reminders + reconfirm-on-change stay v1.1).
 - `src/resolvers/` — thin handlers, `{ok,data}|{ok,code,message}` envelope, three-tier auth.
 - Manifest `app.storage.entities` — **byte-for-byte the reference's** (validated on Forge,
   `docs/03` §2). Never improvise entity/index names (lowercase only).
-- `permissions.scopes` — the reference's five scopes, no additions in v1 (§6).
+- `permissions.scopes` — the reference's five scopes plus `read:content-details:confluence`
+  (post-launch fix, §6) — no other additions in v1.
 
 ### Changed (the UI Kit consequences)
 1. **No `static/app`, no `packages/shared` workspace** for the app proper. Frontend becomes
@@ -196,6 +197,7 @@ permissions:
     - read:user:confluence
     - read:group:confluence
     - read:content.permission:confluence
+    - read:content-details:confluence   # isConfluenceAdmin()'s user/current?expand=operations call
   # No write:* in v1. No permissions.external in any version.
 ```
 
@@ -316,14 +318,33 @@ over a separate HTTP endpoint that needed its own auth scheme.
 - **Cost:** `static/export-ui/` is a real Vite project (own `package.json`, `node_modules`, build
   output) — the one exception to "UI Kit only, no build step" (§1). CI builds it before `forge
   lint`/tests (`.github/workflows/ci.yml`); Forge's own deploy step needs it built too.
-- **Open residual, not yet verified against a live site** (this doc's standing convention, `docs/02`
-  §11): passing the Custom UI module's flat `route:` as a bare string to `@forge/bridge`'s
-  `router.navigate()` (`exportNavigation.ts`) is believed correct per the installed
-  `@forge/bridge` type definitions but hasn't been exercised on a real Confluence site in this
-  session — verify on the next deploy-and-test pass. A second, smaller residual: whether a
-  `confluence:globalPage` module without an explicit "hide from nav" flag shows up as an extra
-  entry in Confluence's global nav alongside the main "Read confirmations" dashboard is cosmetic,
-  not a blocker, and worth checking the same pass.
+  `vite.config.ts` must keep `base: './'` — Vite's default absolute `base: '/'` produces a
+  `<script src="/assets/...">` in the built `index.html`, and Forge serves Custom UI resources from
+  a CDN path prefix, not domain root, so the script 404s and the whole page renders blank with zero
+  console errors (found live, 2026-07-12; the missing `base` was the original bug).
+- **Residual resolved (verified live, 2026-07-12):** passing the Custom UI module's flat `route:`
+  as a bare string to `@forge/bridge`'s `router.navigate()` does **not** work — the bridge sends a
+  string location straight through as `{ url: location }`, so Confluence's host treats a schemeless,
+  slash-less string as a hostname and the browser tries to load `https://read-confirmations-export/`
+  (confirmed: a real, broken navigation to a non-existent domain, not a hypothetical). Fixed in
+  `exportNavigation.ts` by resolving the real URL first via `router.getUrl({ target:
+  NavigationTarget.Module, moduleKey: 'acknowledge-export', spaceKey })` and appending the
+  `pageId`/`spaceKey` scope params to that resolved `URL` object before calling `router.navigate()`
+  with the full string — the typed `Module` location has no slot for `pageId`, but `URL.searchParams`
+  doesn't need one.
+- **Second, deeper residual found and resolved the same pass (verified live, 2026-07-12):** fixing
+  the navigation above still wasn't enough — `static/export-ui/src/main.ts` read the scope params
+  from its own `window.location.search`, which is always empty on a real site. This Custom UI
+  resource renders in a cross-origin iframe whose `src` is Forge's own opaque, pre-built `_ctx_...`
+  CDN URL; it never carries the query string `router.navigate()` puts on the *top-level* Confluence
+  page URL (confirmed by rendering the raw `view.getContext()` payload on a live page — `context`
+  has no `search`/`href` overlap with the outer page at all). The params **do** survive in
+  `context.extension.location`, which Forge populates with the full outer-page URL including the
+  query string — `main.ts` now parses `pageId`/`spaceKey` from `new URL(context.extension.location)`
+  instead of `window.location`. Verified live for all three scopes (page/space/site).
+- **Still-open residual:** whether a `confluence:globalPage` module without an explicit "hide from
+  nav" flag shows up as an extra entry in Confluence's global nav alongside the main "Read
+  confirmations" dashboard is cosmetic, not a blocker, and hasn't been checked yet.
 
 ### 5.1 Original design (superseded — kept for the record)
 
@@ -378,6 +399,7 @@ Attestly build over-requested** so the reduction is deliberate.
 | `read:user:confluence` | ✅ | display-name resolution at render/export (granular; not the broad `read:confluence-user`) |
 | `read:group:confluence` | ✅ | resolve group membership for assignments + managers group |
 | `read:content.permission:confluence` | ✅ | other-user "can view" checks (cannot-view tab) + deleted-vs-restricted probe |
+| `read:content-details:confluence` | ✅ | Confluence-admin check (`GET user/current?expand=operations`) gating the settings page — added post-launch after this scope was found missing; the earlier claim that `read:user:confluence` already covered it was wrong (see docs/02 §7, docs/10) |
 
 **Removed / never added vs. the prior Attestly build (`macro-project`):**
 - `write:comment:confluence` — the prior build used it for @mention reminders. **Reminders are
@@ -388,7 +410,7 @@ Attestly build over-requested** so the reduction is deliberate.
 - **Webtrigger export was unauthenticated then token-patched** in the prior build; the token-guard
   approach was tried here too (§5.1) before a PR review found it still had real problems and export
   moved off webtriggers entirely (§5) — no export-specific scope was ever needed either way.
-- No `read:content.metadata:confluence` beyond what the five scopes cover; no `read:space`,
+- No `read:content.metadata:confluence` beyond what the six scopes cover; no `read:space`,
   no `write:*`, no `permissions.external`.
 
 **CI guard (T14):** manifest scope snapshot test — any PR touching `permissions.scopes` must
@@ -486,7 +508,7 @@ only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permi
 6. **No webtrigger** (revised post-PR-review, §5) — export runs through the normal `asUser`
    resolver + Custom UI `invoke()` path, the same as every other feature. `manifest.test.ts`'s
    TC-H2 asserts zero webtriggers exist, not one.
-7. `permissions.scopes` = the five in §6; any change updates the snapshot test in the same PR.
+7. `permissions.scopes` = the six in §6; any change updates the snapshot test in the same PR.
 
 ---
 
@@ -496,9 +518,10 @@ only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permi
 - Forge bundling of `.tsx` resources + `src/shared` relative import (T1 — validate early).
 - Free-tier (≤10 users) enforcement point + pricing numbers (T15 — still blocked on research,
   `docs/01` §5).
-- `router.navigate()` to the Custom UI export surface's flat `route:` string, and whether a
-  `confluence:globalPage` module without an explicit "hide from nav" flag adds an unwanted nav
-  entry (§5, post-PR-review) — verify both on the next real deploy-and-test pass.
+- ~~`router.navigate()` to the Custom UI export surface's flat `route:` string~~ — **resolved**,
+  verified live 2026-07-12 (§5): it doesn't work, fixed via `router.getUrl()` + `URL.searchParams`.
+- Whether a `confluence:globalPage` module without an explicit "hide from nav" flag adds an
+  unwanted nav entry (§5, post-PR-review) — still open, verify on the next real deploy-and-test pass.
 - `invoke()` response payload headroom for a very large single-call export (§5) — the resolver
   builds the whole file in one invocation now, same memory profile the old webtrigger already had,
   but the `invoke()` transport's own size ceiling (as opposed to a webtrigger HTTP response's) is

@@ -5,7 +5,7 @@ modules:
       render: native
       resolver:
         function: resolver
-      title: Read confirmation
+      title: 'Attestly: Read confirmation'
       # NO `config:` block — assignment is a UI Kit Modal opened from inside the
       # macro (docs/07 §4.3), never a native macro-config panel. This keeps the
       # hard rule "assignment data never enters page ADF" (tech design §11.6)
@@ -16,7 +16,7 @@ modules:
       render: native
       resolver:
         function: resolver
-      title: Read confirmation # static fallback; dynamicProperties below overrides per viewer
+      title: 'Attestly: Read confirmation' # static fallback; dynamicProperties below overrides per viewer
       dynamicProperties:
         function: bylineProps # chip title/tooltip (src/resolvers/bylineProps.ts) —
         # platform re-invokes this automatically after the dialog closes,
@@ -27,7 +27,7 @@ modules:
       resource: dashboard
       render: native
       route: read-confirmations
-      title: Read confirmations
+      title: 'Attestly: Read confirmations'
       resolver:
         function: resolver
     - key: acknowledge-export # T11/T12, revised post-PR-review (docs/07 §5)
@@ -44,14 +44,14 @@ modules:
       # download URL to guard, leak, or replay.
       resource: export-ui
       route: read-confirmations-export
-      title: Export read confirmations
+      title: 'Attestly: Export read confirmations'
       resolver:
         function: resolver
   confluence:globalSettings:
     - key: acknowledge-settings # Epic G — app settings (T13)
       resource: settings
       render: native
-      title: Read Confirmation
+      title: 'Attestly: Settings'
       resolver:
         function: resolver
   function:
@@ -77,6 +77,7 @@ permissions:
     - read:user:confluence # display names at render time
     - read:group:confluence # group membership resolution
     - read:content.permission:confluence # other-user cannot-view checks
+    - read:content-details:confluence # isConfluenceAdmin's GET user/current?expand=operations call
   # No write:* scopes in v1. No external egress to any third party in any
   # version (§7). No webtrigger in this app (docs/07 §5) — every inbound
   # call, including export, goes through the normal Forge resolver/invoke()
@@ -185,3 +186,30 @@ app:
               - pageId
             range:
               - at
+      - name: export-job
+        # DEAD, kept only so `forge deploy` doesn't fail: this entity was already
+        # provisioned on the (development) site before export moved off webtriggers
+        # to Custom UI (502c95d, docs/07 §5) and export-job's code (storage/exportJobs.ts)
+        # was deleted. Forge has no supported way to remove an entity once deployed to
+        # an environment (deploy fails with DELETED_ENTITY otherwise) — this stub must
+        # stay declared indefinitely. Schema frozen exactly as last deployed (git show
+        # 4fb19c2:manifest.yml); no code reads or writes it anymore.
+        attributes:
+          token:
+            type: string
+          requestedBy:
+            type: string
+          format:
+            type: string
+          scope:
+            type: string
+          statusFilter:
+            type: string
+          dateFrom:
+            type: string
+          dateTo:
+            type: string
+          pages:
+            type: any
+          createdAt:
+            type: string

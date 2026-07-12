@@ -206,6 +206,7 @@ Page existence is resolved **lazily** wherever a page is rendered or exported: a
 | `read:user:confluence` | display names at render time (granular scope — classic equivalent is `read:confluence-user`; prefer granular) |
 | `read:group:confluence` | group membership resolution for assignments |
 | `read:content.permission:confluence` | "can user X view page P" checks for cannot-view flagging (content permission check API) |
+| `read:content-details:confluence` | `isConfluenceAdmin()`'s `GET user/current?expand=operations` call (auth.ts) — Atlassian's own REST reference lists this as the granular scope for that endpoint; an earlier assumption that `read:user:confluence` already covered it was wrong and left the admin gate 403'ing for every caller until fixed |
 
 No `write:*` Confluence scopes in v1 (app never mutates content). No external egress. **Runs on Atlassian (spike M0-7 finding):** a `webtrigger` module alone disqualifies an app from the RoA program ("can egress data") — the product app must **never** declare one, including for ops/debugging; verify with `forge eligibility` in CI before each release. **Resolved (spike M0-4):** the v1.1 reminder channel is comment-based @mentions, which adds `write:comment:confluence` in v1.1 — the only write scope, limited to the app's own reminder comments; the security statement and scope-snapshot test (§10) must be updated in the same PR. No egress in any version.
 

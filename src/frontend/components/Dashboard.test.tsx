@@ -9,15 +9,18 @@ import type { DashboardRow } from '../../shared';
 jest.mock('@forge/bridge', () => ({
   view: { getContext: jest.fn() },
   invoke: jest.fn(),
-  router: { navigate: jest.fn() },
+  router: { navigate: jest.fn(), getUrl: jest.fn() },
+  NavigationTarget: { Module: 'module' },
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bridge = require('@forge/bridge') as {
   view: { getContext: jest.Mock };
   invoke: jest.Mock;
-  router: { navigate: jest.Mock };
+  router: { navigate: jest.Mock; getUrl: jest.Mock };
 };
+
+const EXPORT_PAGE_URL = 'https://example.atlassian.net/wiki/apps/app-id/env-id/read-confirmations-export';
 
 function extractText(node: unknown): string {
   if (node === null || node === undefined || typeof node === 'boolean') {
@@ -71,6 +74,7 @@ async function mount(props: DashboardProps = {}): Promise<ReactTestRenderer> {
 beforeEach(() => {
   jest.clearAllMocks();
   bridge.view.getContext.mockResolvedValue({ locale: 'en' });
+  bridge.router.getUrl.mockResolvedValue(new URL(EXPORT_PAGE_URL));
 });
 
 describe('Dashboard — access gates', () => {
@@ -105,6 +109,14 @@ describe('Dashboard — row rendering', () => {
     expect(text).toContain('4');
   });
 
+  it('shows a placeholder instead of a raw numeric spaceId when the space key never resolved', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [row({ spaceKey: '327684' })], nextCursor: null } });
+    const renderer = await mount();
+    const text = extractText(renderer.toJSON());
+    expect(text).not.toContain('327684');
+    expect(text).toContain("Space key couldn't be resolved");
+  });
+
   it('renders a deleted row as "[deleted page {id}]", never leaking a title', async () => {
     bridge.invoke.mockResolvedValue({
       ok: true,
@@ -131,7 +143,7 @@ describe('Dashboard — row rendering', () => {
       data: { rows: [row({ dueDate: '2020-01-01', overdue: true })], nextCursor: null },
     });
     const renderer = await mount();
-    expect(extractText(renderer.toJSON())).toContain('⚠');
+    expect(extractText(renderer.toJSON())).toContain('Overdue');
   });
 });
 
@@ -172,8 +184,10 @@ describe('Dashboard — export (T11, revised post-PR-review to the Custom UI exp
 
     await act(async () => {
       renderer.root.findByType(Button).props.onClick();
+      await Promise.resolve();
     });
-    expect(bridge.router.navigate).toHaveBeenCalledWith('read-confirmations-export');
+    expect(bridge.router.getUrl).toHaveBeenCalledWith({ target: 'module', moduleKey: 'acknowledge-export', spaceKey: undefined });
+    expect(bridge.router.navigate).toHaveBeenCalledWith(EXPORT_PAGE_URL);
   });
 });
 

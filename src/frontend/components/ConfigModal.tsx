@@ -226,7 +226,13 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
               ) : null}
               <Box>
                 <Label labelFor="dueDate">{t('config.dueDate')}</Label>
-                <DatePicker id="dueDate" defaultValue={dueDate ?? undefined} onChange={setDueDate} />
+                {/* Verified live (2026-07-12): `defaultValue={undefined}` renders the
+                    platform DatePicker's text field pre-filled with a bogus date
+                    (2/18/1993) on every never-configured page, even though the
+                    calendar itself correctly opens with nothing selected -- an
+                    absent prop and an explicit empty string are not equivalent to
+                    this component. Pass '' instead so there is no ambiguity. */}
+                <DatePicker id="dueDate" defaultValue={dueDate ?? ''} onChange={setDueDate} />
               </Box>
               <Inline space="space.100" alignBlock="center">
                 <Toggle
@@ -237,7 +243,7 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
                 <Lozenge appearance="new">v1.1</Lozenge>
               </Inline>
               {saveError ? (
-                <SectionMessage appearance="error" title={t('macro.error.title')}>
+                <SectionMessage appearance="error" title={t('config.error.title')}>
                   <Text>{saveError}</Text>
                 </SectionMessage>
               ) : null}
