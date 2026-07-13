@@ -29,6 +29,7 @@ import kvsFake from '@forge/kvs';
 import apiFake from '@forge/api';
 import { registerResolvers } from './index';
 import { savePageConfig, getPageConfig } from '../storage/configs';
+import { saveSettings } from '../storage/settings';
 import { drainByPage } from '../storage/confirmations';
 import { drainAuditByPage } from '../storage/audit';
 import type {
@@ -98,7 +99,15 @@ describe('getPageStatus', () => {
 
     expect(result).toEqual({
       ok: true,
-      data: { status: 'outstanding', pageVersion: 3, dueDate: null, isAssigned: false, confirmedAt: null, canConfigure: true },
+      data: {
+        status: 'outstanding',
+        pageVersion: 3,
+        dueDate: null,
+        isAssigned: false,
+        confirmedAt: null,
+        confirmedVersion: null,
+        canConfigure: true,
+      },
     });
   });
 
@@ -116,6 +125,7 @@ describe('getPageStatus', () => {
         dueDate: '2026-08-15',
         isAssigned: true,
         confirmedAt: null,
+        confirmedVersion: null,
         canConfigure: true,
       },
     });
@@ -132,6 +142,30 @@ describe('getPageStatus', () => {
     expect((result as { ok: true; data: PageStatusResponse }).data.isAssigned).toBe(true);
   });
 
+  it('fetches the caller\'s group memberships at most once even when both canConfigure and isAssigned need them (efficiency fix)', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'compliance-team', reconfirmDefault: false });
+    await savePageConfig(aPageConfig({ pageId: 'page-1', assignedUsers: [], assignedGroups: ['sec-all'] }));
+
+    let memberOfCalls = 0;
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) {
+        memberOfCalls += 1;
+        return jsonResponse(200, { results: [{ id: 'sec-all' }] });
+      }
+      return pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 1, spaceId: '111' })(url);
+    });
+
+    const result = await invoke<PageStatusPayload, PageStatusResponse>('getPageStatus', { pageId: 'page-1' });
+
+    expect((result as { ok: true; data: PageStatusResponse }).data.isAssigned).toBe(true);
+    // Both isComplianceManager (via canConfigure) and isMemberOfAnyGroup (via
+    // resolveIsAssigned) need this account's group memberships here -- the
+    // memoized lookup (resolvers/index.ts's createGroupMembershipLookup)
+    // must serve both from one fetch, not one paginated /user/memberof call
+    // per consumer.
+    expect(memberOfCalls).toBe(1);
+  });
+
   it('status confirmed after a prior confirmation at the current version', async () => {
     fakeApi.setHandler(pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 5, spaceId: '111' }));
     const confirmResult = await invoke<ConfirmPayload, ConfirmResponse>('confirm', { pageId: 'page-1', pageVersion: 5 });
@@ -142,6 +176,22 @@ describe('getPageStatus', () => {
     // confirmedAt must survive a page reload (getPageStatus), not just the
     // fresh confirm response — R3 needs it on every render, not once.
     const confirmData = (confirmResult as { ok: true; data: ConfirmResponse & { outcome: 'confirmed' } }).data;
+    expect(data.confirmedAt).toBe(confirmData.confirmedAt);
+  });
+
+  it('status expired reports the prior confirmedVersion, distinct from the new pageVersion (R4)', async () => {
+    await savePageConfig(aPageConfig({ pageId: 'page-1', reconfirmOnChange: true }));
+    fakeApi.setHandler(pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 5, spaceId: '111' }));
+    const confirmResult = await invoke<ConfirmPayload, ConfirmResponse>('confirm', { pageId: 'page-1', pageVersion: 5 });
+    const confirmData = (confirmResult as { ok: true; data: ConfirmResponse & { outcome: 'confirmed' } }).data;
+
+    fakeApi.setHandler(pageAndSpaceHandler({ id: 'page-1', title: 'Policy', version: 7, spaceId: '111' }));
+    const result = await invoke<PageStatusPayload, PageStatusResponse>('getPageStatus', { pageId: 'page-1' });
+    const data = (result as { ok: true; data: PageStatusResponse }).data;
+
+    expect(data.status).toBe('expired');
+    expect(data.pageVersion).toBe(7);
+    expect(data.confirmedVersion).toBe(5);
     expect(data.confirmedAt).toBe(confirmData.confirmedAt);
   });
 

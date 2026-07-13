@@ -12,16 +12,21 @@ export interface ConfirmBlockProps {
 }
 
 /**
- * Renders reader states R1 (required), R3 (confirmed), R5 (voluntary), and
- * R6 (error, layered above the button) — UX doc §2.1. Shared between the
- * macro and, from T8, the byline dialog, which "reuses macro status/confirm
- * components" (UX doc §2.2).
+ * Renders reader states R1 (required), R3 (confirmed), R4 (expired), R5
+ * (voluntary), and R6 (error, layered above the button) — UX doc §2.1.
+ * Shared between the macro and, from T8, the byline dialog, which "reuses
+ * macro status/confirm components" (UX doc §2.2).
  *
- * R4 (expired, v1.1) intentionally has no distinct rendering yet: it's
- * folded into R1/R5 here — a fresh confirm at the current version is
- * exactly what an expired reader needs to do, the same action as R1/R5 —
- * rather than building v1.1's richer "you confirmed v{old}, page is now
- * v{new}" copy this task doesn't need (docs/06 T6: "R4 ships behind v1.1 flag").
+ * R4 found in review: this used to fold 'expired' into the generic R1/R5
+ * required/voluntary prompt with no mention of the reader's prior
+ * confirmation at all — a reader who'd confirmed v5 of a now-v7 page saw
+ * the exact same "please confirm" ask as someone who had never confirmed
+ * anything, with no indication the page had changed since they last read
+ * it. UX doc §2.1's R4 mockup ("This page has changed since you confirmed
+ * it" / "You confirmed version {old}; the page is now version {new}.") was
+ * scaffolded in i18n (macro.changed.*) but never wired up here — wired up
+ * now using `status.confirmedVersion` (shared/types.ts), the version that
+ * scaffolded string needs and the only piece 'expired' was missing.
  */
 export function ConfirmBlock({ status, onConfirm, confirming, confirmError }: ConfirmBlockProps): React.JSX.Element {
   const { t } = useI18n();
@@ -49,14 +54,27 @@ export function ConfirmBlock({ status, onConfirm, confirming, confirmError }: Co
     );
   }
 
-  // 'outstanding' and 'expired' (R4 fallback, see docstring) both show the
-  // confirm prompt — required vs. voluntary wording only depends on assignment.
+  // 'outstanding' (never confirmed) and 'expired' (R4: confirmed once, but
+  // the page has since moved past that version) both end in the same
+  // confirm prompt, but 'expired' gets its own banner first — falling back
+  // to the generic required/voluntary copy if confirmedVersion is somehow
+  // absent (defensive: 'expired' should always carry one, see shared/types.ts).
   const required = status.isAssigned;
+  const changed = status.status === 'expired' && status.confirmedVersion !== null;
 
   return (
     <Stack space="space.100">
-      <SectionMessage appearance="information" title={required ? t('macro.required.title') : undefined}>
-        <Text>{required ? t('macro.required.body') : t('macro.voluntary.body')}</Text>
+      <SectionMessage
+        appearance={changed ? 'warning' : 'information'}
+        title={changed ? t('macro.changed.title') : required ? t('macro.required.title') : undefined}
+      >
+        <Text>
+          {changed
+            ? t('macro.changed.body', { oldVersion: status.confirmedVersion as number, newVersion: status.pageVersion })
+            : required
+              ? t('macro.required.body')
+              : t('macro.voluntary.body')}
+        </Text>
         {required && status.dueDate ? <Text>{t('macro.due', { date: formatLocalDate(status.dueDate) })}</Text> : null}
       </SectionMessage>
       {confirmError ? (

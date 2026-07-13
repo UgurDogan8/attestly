@@ -106,6 +106,30 @@ describe('ConfigModal — due date field', () => {
     const renderer = await mount();
     expect(renderer.root.findByType(DatePicker).props.defaultValue).toBe('2026-07-31');
   });
+
+  it("clearing an existing due date and saving sends null, not '' (DatePicker's onChange is never called with null itself, so a live save with '' hit the KVS \"cannot be empty\" error every time)", async () => {
+    bridge.invoke.mockImplementation((functionKey: string) => {
+      if (functionKey === 'getConfig') {
+        return Promise.resolve({ ok: true, data: { ...EMPTY_CONFIG, dueDate: '2026-07-31' } });
+      }
+      if (functionKey === 'saveConfig') {
+        return Promise.resolve({ ok: true, data: { ...EMPTY_CONFIG, dueDate: null } });
+      }
+      return Promise.resolve({ ok: true, data: [] });
+    });
+    const renderer = await mount();
+
+    await act(async () => {
+      // DatePicker's own clear control calls onChange('') -- it never calls onChange(null).
+      renderer.root.findByType(DatePicker).props.onChange('');
+    });
+    await act(async () => {
+      renderer.root.findByType(LoadingButton).props.onClick();
+      await flush();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('saveConfig', expect.objectContaining({ dueDate: null }));
+  });
 });
 
 describe('ConfigModal — group recommendation hint (data model §2.2, T7 accept criteria)', () => {

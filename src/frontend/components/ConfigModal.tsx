@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -22,6 +22,7 @@ import {
 } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
+import { useDebouncedCallback } from './useDebouncedCallback';
 import type {
   GetConfigPayload,
   ConfigResponse,
@@ -73,18 +74,22 @@ function toSelectOptions(groups: GroupOption[]): SelectOption[] {
   return groups.map((g) => ({ label: g.name, value: g.id }));
 }
 
-function normalizeUserPickerValue(value: unknown): string[] {
+/** UI Kit's UserPicker/Select onChange hands back a single item, an array, or null/undefined depending on isMulti and whether the field was cleared -- always coerce to an array before filtering/mapping. */
+function normalizeMultiValue<Item, R>(value: unknown, isItem: (item: unknown) => item is Item, map: (item: Item) => R): R[] {
   const items = Array.isArray(value) ? value : value ? [value] : [];
-  return items
-    .filter((item): item is { id: string } => !!item && typeof item === 'object' && 'id' in item)
-    .map((item) => item.id);
+  return items.filter(isItem).map(map);
+}
+
+function normalizeUserPickerValue(value: unknown): string[] {
+  return normalizeMultiValue(value, (item): item is { id: string } => !!item && typeof item === 'object' && 'id' in item, (item) => item.id);
 }
 
 function normalizeSelectValue(value: unknown): GroupOption[] {
-  const items = Array.isArray(value) ? value : value ? [value] : [];
-  return items
-    .filter((item): item is SelectOption => !!item && typeof item === 'object' && 'value' in item && 'label' in item)
-    .map((item) => ({ id: item.value, name: item.label }));
+  return normalizeMultiValue(
+    value,
+    (item): item is SelectOption => !!item && typeof item === 'object' && 'value' in item && 'label' in item,
+    (item) => ({ id: item.value, name: item.label }),
+  );
 }
 
 const GROUP_RECOMMENDATION_THRESHOLD = 50;
@@ -105,7 +110,12 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [groupSearchOptions, setGroupSearchOptions] = useState<SelectOption[]>([]);
 
-  const groupSearchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const groupSearch = useDebouncedCallback(async (query: string) => {
+    const result = await searchGroupsInvoke.run({ pageId, query });
+    if (result.ok) {
+      setGroupSearchOptions(toSelectOptions(result.data));
+    }
+  }, GROUP_SEARCH_DEBOUNCE_MS);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,28 +140,13 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]);
 
-  useEffect(() => {
-    return () => {
-      if (groupSearchTimer.current) {
-        clearTimeout(groupSearchTimer.current);
-      }
-    };
-  }, []);
-
   function handleGroupInputChange(query: string): void {
-    if (groupSearchTimer.current) {
-      clearTimeout(groupSearchTimer.current);
-    }
     if (!query) {
+      groupSearch.cancel();
       setGroupSearchOptions([]);
       return;
     }
-    groupSearchTimer.current = setTimeout(async () => {
-      const result = await searchGroupsInvoke.run({ pageId, query });
-      if (result.ok) {
-        setGroupSearchOptions(toSelectOptions(result.data));
-      }
-    }, GROUP_SEARCH_DEBOUNCE_MS);
+    groupSearch.run(query);
   }
 
   async function handleSave(): Promise<void> {
@@ -231,8 +226,19 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
                     (2/18/1993) on every never-configured page, even though the
                     calendar itself correctly opens with nothing selected -- an
                     absent prop and an explicit empty string are not equivalent to
-                    this component. Pass '' instead so there is no ambiguity. */}
-                <DatePicker id="dueDate" defaultValue={dueDate ?? ''} onChange={setDueDate} />
+                    this component. Pass '' instead so there is no ambiguity.
+
+                    Second bug, also verified live: DatePicker's onChange is typed
+                    `(value: string) => void` -- it is never called with null, so
+                    clearing an existing due date via the field's own clear button
+                    set `dueDate` state to `''`, not `null`. toStorableConfig
+                    (storage/configs.ts) only special-cases `null`; an empty string
+                    passed through untouched and hit the same "cannot be null"-class
+                    KVS error, but with the empty-string message this time --
+                    `Value for attribute "dueDate" cannot be empty` -- making it
+                    permanently impossible to remove a due date once set. Normalize
+                    '' to null here, at the one place the raw string enters state. */}
+                <DatePicker id="dueDate" defaultValue={dueDate ?? ''} onChange={(value) => setDueDate(value || null)} />
               </Box>
               <Inline space="space.100" alignBlock="center">
                 <Toggle

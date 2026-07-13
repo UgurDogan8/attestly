@@ -1,8 +1,7 @@
 import React from 'react';
-import { LoadingButton, SectionMessage, Spinner, Stack, Text } from '@forge/react';
-import { useI18n } from './useI18n';
 import { useReaderState } from './useReaderState';
 import { ConfirmBlock } from './ConfirmBlock';
+import { ReaderPhaseView } from './ReaderPhaseView';
 
 /**
  * The byline dialog (docs/06 T8, UX doc §2.2): "Dialog shows the user's
@@ -25,39 +24,16 @@ import { ConfirmBlock } from './ConfirmBlock';
  * dialog close").
  */
 export function Byline(): React.JSX.Element | null {
-  const { t } = useI18n();
   const { phase, confirmError, confirming, reloading, handleConfirm, handleReload } = useReaderState();
 
-  switch (phase.kind) {
-    case 'loading':
-      return <Spinner label={t('common.loadMore')} />;
-
-    case 'unsupportedContentType':
-      return <Text>{t('macro.unsupportedContentType')}</Text>;
-
-    case 'error':
-      return (
-        <SectionMessage appearance="error" title={t('macro.error.title')}>
-          <Text>{phase.message}</Text>
-        </SectionMessage>
-      );
-
-    case 'pageChanged':
-      return (
-        <Stack space="space.100">
-          <SectionMessage appearance="information" title={t('macro.midread.title')}>
-            <Text>{t('macro.midread.body')}</Text>
-          </SectionMessage>
-          <LoadingButton isLoading={reloading} onClick={handleReload}>
-            {t('macro.midread.reload')}
-          </LoadingButton>
-        </Stack>
-      );
-
-    case 'ready':
-      return <ConfirmBlock status={phase.status} onConfirm={handleConfirm} confirming={confirming} confirmError={confirmError} />;
-
-    default:
-      return null;
-  }
+  return (
+    <ReaderPhaseView
+      phase={phase}
+      reloading={reloading}
+      handleReload={handleReload}
+      renderReady={(readyPhase) => (
+        <ConfirmBlock status={readyPhase.status} onConfirm={handleConfirm} confirming={confirming} confirmError={confirmError} />
+      )}
+    />
+  );
 }

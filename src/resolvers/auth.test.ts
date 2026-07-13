@@ -40,6 +40,7 @@ import {
   checkViewPermission,
   getGroupMemberAccountIds,
   resolveUserDisplayName,
+  resolveUserDisplayNameOrNull,
 } from './auth';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -455,5 +456,22 @@ describe('resolveUserDisplayName (T11 — data model §4 user_display_name colum
     fakeApi.setHandler(() => jsonResponse(200, { displayName: 'X' }));
     await resolveUserDisplayName('acc-1', 'app');
     expect(fakeApi.lastTier).toBe('app');
+  });
+});
+
+describe('resolveUserDisplayNameOrNull (i18n fix — history tab must not bake English fallback text server-side)', () => {
+  it('returns the resolved display name unchanged', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { displayName: 'Ayşe Yılmaz' }));
+    expect(await resolveUserDisplayNameOrNull('acc-1', 'user')).toBe('Ayşe Yılmaz');
+  });
+
+  it('maps the "[deactivated]" sentinel to null', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { displayName: null }));
+    expect(await resolveUserDisplayNameOrNull('acc-1', 'user')).toBeNull();
+  });
+
+  it('maps the "[deleted user]" sentinel to null', async () => {
+    fakeApi.setHandler(() => jsonResponse(404, {}));
+    expect(await resolveUserDisplayNameOrNull('acc-1', 'user')).toBeNull();
   });
 });

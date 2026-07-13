@@ -41,4 +41,15 @@ describe('getSettings / saveSettings (data model §2.3 — singleton)', () => {
       reconfirmDefault: true,
     });
   });
+
+  it('clearing a previously-set compliance managers group round-trips to null (manifest.yml has no nullable marker on this field — regression for a live "cannot be null" save failure)', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'group-1', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: null, reconfirmDefault: false });
+
+    expect(await getSettings()).toEqual({
+      schemaVersion: 1,
+      complianceManagersGroupId: null,
+      reconfirmDefault: false,
+    });
+  });
 });

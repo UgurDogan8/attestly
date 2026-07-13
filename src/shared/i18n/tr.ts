@@ -94,6 +94,8 @@ export const tr: Record<MessageKey, string> = {
   'export.download': '{format} indir',
   'export.statusFilter': 'Durum',
   'export.spaceKey': 'Alan anahtarı',
+  'export.contextError':
+    'Bu sayfanın bağlamı yüklenemediği için dışa aktarma kapsamı (sayfa veya alan) güvenli şekilde belirlenemiyor. Tekrar denemek için Export\'u dashboard, drill-down veya ayarlar sayfasından yeniden açın.',
 
   'detail.back': 'Kontrol paneline dön',
   'detail.stat.assigned': 'Atanan',

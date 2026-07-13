@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -20,10 +20,11 @@ import {
 } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
+import { useDebouncedCallback } from './useDebouncedCallback';
 import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
-import type { GetDashboardPayload, GetDashboardResponse, DashboardRow, StatusFilter } from '../../shared';
+import { isUnresolvedSpaceKey, type GetDashboardPayload, type GetDashboardResponse, type DashboardRow, type StatusFilter } from '../../shared';
 
 /**
  * The dashboard global page (docs/06 T9, UX doc §3.2). List-only for this
@@ -43,18 +44,6 @@ const STATUS_FILTER_DEBOUNCE_MS = 400;
 
 const toolbarStyles = xcss({ borderRadius: 'radius.medium' });
 const filterIconStyles = xcss({ paddingInlineStart: 'space.050' });
-
-/**
- * `resolveSpaceKey()` (auth.ts) falls back to the raw numeric `spaceId` when
- * it can't resolve a real key (no space-read scope is requested — a
- * deliberate scope-minimization tradeoff, docs/07 §6). Real Confluence space
- * keys always start with a letter, so an all-digits value is always that
- * fallback, never a genuine key — shown as an unresolved placeholder instead
- * of a number that looks like a real (but wrong) key.
- */
-function isUnresolvedSpaceKey(spaceKey: string): boolean {
-  return /^\d+$/.test(spaceKey);
-}
 
 interface StatusOption {
   label: string;
@@ -77,8 +66,6 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   const [forbidden, setForbidden] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-
-  const spaceFilterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   /**
    * Takes filters as explicit arguments rather than reading spaceKeyInput/
@@ -111,17 +98,20 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
 
   useEffect(() => {
     void runFilteredFetch({ statusFilter: 'all' });
-    return () => {
-      if (spaceFilterTimer.current) {
-        clearTimeout(spaceFilterTimer.current);
-      }
-    };
     // Deliberately empty deps: this effect only handles the very first
     // load, always unfiltered by construction (the filter state doesn't
     // exist yet at mount time). Filter changes and "Load more" are handled
     // explicitly below, each passing its own current values directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Args captured at call time (see runFilteredFetch's docstring above) --
+  // handleSpaceInputChange passes both explicitly rather than letting this
+  // callback close over component state, which would see whatever state is
+  // current when the timer *fires*, not when the keystroke happened.
+  const spaceFilter = useDebouncedCallback((spaceKey: string | undefined, currentStatusFilter: StatusFilter) => {
+    void runFilteredFetch({ spaceKey, statusFilter: currentStatusFilter });
+  }, STATUS_FILTER_DEBOUNCE_MS);
 
   function handleLoadMore(): void {
     void runFilteredFetch({
@@ -133,12 +123,7 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
 
   function handleSpaceInputChange(value: string): void {
     setSpaceKeyInput(value);
-    if (spaceFilterTimer.current) {
-      clearTimeout(spaceFilterTimer.current);
-    }
-    spaceFilterTimer.current = setTimeout(() => {
-      void runFilteredFetch({ spaceKey: value.trim() || undefined, statusFilter });
-    }, STATUS_FILTER_DEBOUNCE_MS);
+    spaceFilter.run(value.trim() || undefined, statusFilter);
   }
 
   function handleStatusFilterChange(next: StatusFilter): void {

@@ -124,13 +124,23 @@ export async function getCurrentUserGroupIds(accountId: string): Promise<Set<str
   return groupIds;
 }
 
+/**
+ * Lazily fetches and memoizes an accountId's group memberships for the
+ * lifetime of a single resolver invocation — pass the same lookup into both
+ * isMemberOfAnyGroup and isComplianceManager/canConfigure when a resolver
+ * needs both, so getCurrentUserGroupIds' paginated fetch runs at most once
+ * per request instead of once per caller (see resolvers/index.ts's
+ * getPageStatus, the one handler that needs both today).
+ */
+export type GroupMembershipLookup = () => Promise<Set<string>>;
+
 /** True if the current user belongs to any of the given group IDs (empty list -> false, no call made). */
-export async function isMemberOfAnyGroup(accountId: string, groupIds: string[]): Promise<boolean> {
+export async function isMemberOfAnyGroup(accountId: string, groupIds: string[], memberOf?: GroupMembershipLookup): Promise<boolean> {
   if (groupIds.length === 0) {
     return false;
   }
-  const memberOf = await getCurrentUserGroupIds(accountId);
-  return groupIds.some((id) => memberOf.has(id));
+  const groups = await (memberOf ? memberOf() : getCurrentUserGroupIds(accountId));
+  return groupIds.some((id) => groups.has(id));
 }
 
 interface UserOperation {
@@ -193,11 +203,15 @@ export async function isConfluenceAdmin(): Promise<boolean> {
  * *configured* on the settings page and can't be allowed to grant access
  * to itself.
  */
-export async function isComplianceManager(accountId: string): Promise<boolean> {
+export async function isComplianceManager(accountId: string, memberOfLookup?: GroupMembershipLookup): Promise<boolean> {
   const settings = await getSettings();
   const [isAdmin, memberOf] = await Promise.all([
     isConfluenceAdmin(),
-    settings.complianceManagersGroupId ? getCurrentUserGroupIds(accountId) : Promise.resolve(new Set<string>()),
+    settings.complianceManagersGroupId
+      ? memberOfLookup
+        ? memberOfLookup()
+        : getCurrentUserGroupIds(accountId)
+      : Promise.resolve(new Set<string>()),
   ]);
   if (isAdmin) {
     return true;
@@ -206,8 +220,8 @@ export async function isComplianceManager(accountId: string): Promise<boolean> {
 }
 
 /** Config write gate (tech design §4 resolver table): page edit permission OR compliance manager. */
-export async function canConfigure(pageId: string, accountId: string): Promise<boolean> {
-  const [canEdit, isManager] = await Promise.all([hasEditPermission(pageId, accountId), isComplianceManager(accountId)]);
+export async function canConfigure(pageId: string, accountId: string, memberOfLookup?: GroupMembershipLookup): Promise<boolean> {
+  const [canEdit, isManager] = await Promise.all([hasEditPermission(pageId, accountId), isComplianceManager(accountId, memberOfLookup)]);
   return canEdit || isManager;
 }
 
@@ -419,4 +433,21 @@ export async function resolveUserDisplayName(accountId: string, tier: ApiTier): 
   } catch {
     return '[deleted user]';
   }
+}
+
+/**
+ * Same resolution as `resolveUserDisplayName`, but the unresolved cases come
+ * back `null` instead of the baked-in English `'[deleted user]'`/
+ * `'[deactivated]'` strings. For callers whose result gets interpolated into
+ * a client-rendered, *localized* sentence (`getPageHistory`'s
+ * `detail.history.*` templates are the one such caller) — bug found in
+ * review: without this, a Turkish-locale viewer saw an untranslated English
+ * fragment stuck inside an otherwise-Turkish sentence. `resolveUserDisplayName`
+ * itself is unchanged and still correct for `resolvers/export.ts`'s CSV/PDF
+ * row-building, which already uses unlocalized English enum values
+ * elsewhere in the same row (data model §4) and is never passed through `t()`.
+ */
+export async function resolveUserDisplayNameOrNull(accountId: string, tier: ApiTier): Promise<string | null> {
+  const name = await resolveUserDisplayName(accountId, tier);
+  return name === '[deleted user]' || name === '[deactivated]' ? null : name;
 }

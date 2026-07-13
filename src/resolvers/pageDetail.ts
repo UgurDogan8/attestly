@@ -6,7 +6,7 @@ import {
   checkViewPermission,
   getGroupMemberAccountIds,
   resolveGroupNames,
-  resolveUserDisplayName,
+  resolveUserDisplayNameOrNull,
 } from './auth';
 import { resolvePageVisibility } from './dashboard';
 import { mapWithConcurrency } from './concurrency';
@@ -187,8 +187,25 @@ export async function getPageDetail(payload: GetPageDetailPayload, accountId: st
   // truth just computed, so the next dashboard read is accurate "for free".
   // A deleted page's counters are frozen deliberately (data model §3.1) —
   // never touched here.
+  //
+  // Race fixed in review (2026-07-12): this used to write back the `config`
+  // object read at the *start* of this function -- everything from
+  // assignedUsers to dueDate, not just the counter. Between that read and
+  // this write sits every await above (group resolution, a full
+  // drainByPage scan, concurrency-10 permission checks): seconds of window
+  // in which a concurrent saveConfig (an admin editing assignment/due date
+  // while this drill-down was still computing) would be silently reverted
+  // by this line, with no error and no audit entry for the revert. Re-fetch
+  // immediately before writing so only the counter comes from stale data;
+  // every other field comes from whatever is actually current right now,
+  // narrowing the race to the negligible gap between this read and the
+  // write itself (the same residual risk storage/confirmations.ts's
+  // writeConfirmation already tolerates by design for the counter alone).
   if (!deleted && confirmed.length !== config.counters.confirmedCurrentVersion) {
-    await savePageConfig({ ...config, counters: { ...config.counters, confirmedCurrentVersion: confirmed.length } });
+    const freshConfig = await getPageConfig(pageId);
+    if (freshConfig) {
+      await savePageConfig({ ...freshConfig, counters: { ...freshConfig.counters, confirmedCurrentVersion: confirmed.length } });
+    }
   }
 
   return ok({
@@ -239,9 +256,9 @@ export async function getPageHistory(payload: GetPageHistoryPayload, accountId: 
   }
 
   const [userNamePairs, groupOptions] = await Promise.all([
-    mapWithConcurrency(Array.from(accountIds), NAME_RESOLUTION_CONCURRENCY, async (id): Promise<[string, string]> => [
+    mapWithConcurrency(Array.from(accountIds), NAME_RESOLUTION_CONCURRENCY, async (id): Promise<[string, string | null]> => [
       id,
-      await resolveUserDisplayName(id, 'user'),
+      await resolveUserDisplayNameOrNull(id, 'user'),
     ]),
     resolveGroupNames(Array.from(groupIds)),
   ]);
@@ -250,7 +267,7 @@ export async function getPageHistory(payload: GetPageHistoryPayload, accountId: 
 
   const entries = page.results.map((record, i) => ({
     at: record.at,
-    actorName: userNameById.get(record.actor) ?? '[deleted user]',
+    actorName: userNameById.get(record.actor) ?? null,
     changes: changesByRecord[i].map(
       (change): HistoryChangeView =>
         change.kind === 'dueDate'
@@ -259,8 +276,7 @@ export async function getPageHistory(payload: GetPageHistoryPayload, accountId: 
               kind: change.kind,
               subjectType: change.subjectType,
               subjectName:
-                (change.subjectType === 'user' ? userNameById.get(change.subjectId) : groupNameById.get(change.subjectId)) ??
-                (change.subjectType === 'user' ? '[deleted user]' : '[deleted group]'),
+                (change.subjectType === 'user' ? userNameById.get(change.subjectId) : groupNameById.get(change.subjectId)) ?? null,
             },
     ),
   }));

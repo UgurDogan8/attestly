@@ -42,6 +42,7 @@ function status(overrides: Partial<PageStatusResponse> = {}): PageStatusResponse
     dueDate: null,
     isAssigned: true,
     confirmedAt: null,
+    confirmedVersion: null,
     canConfigure: false,
     ...overrides,
   };
@@ -91,6 +92,33 @@ describe('ConfirmBlock — R1 required', () => {
       confirmError: null,
     });
     expect(extractText(renderer.toJSON())).not.toContain('Due:');
+  });
+});
+
+describe('ConfirmBlock — R4 expired (page changed since the reader last confirmed)', () => {
+  it('shows the changed banner with the old and new versions, still offers the confirm button', async () => {
+    const renderer = await renderBlock({
+      status: status({ status: 'expired', pageVersion: 7, confirmedVersion: 5, confirmedAt: '2026-07-01T00:00:00.000Z' }),
+      onConfirm: jest.fn(),
+      confirming: false,
+      confirmError: null,
+    });
+    const text = extractText(renderer.toJSON());
+    expect(text).toContain('This page has changed since you confirmed it');
+    expect(text).toContain('You confirmed version 5; the page is now version 7.');
+    expect(text).toContain('I have read and understood this page');
+    // Not the generic outstanding copy -- R4 replaces it, not layers on it.
+    expect(text).not.toContain('Your acknowledgement of this page is requested.');
+  });
+
+  it('falls back to the generic required copy if confirmedVersion is unexpectedly absent', async () => {
+    const renderer = await renderBlock({
+      status: status({ status: 'expired', confirmedVersion: null }),
+      onConfirm: jest.fn(),
+      confirming: false,
+      confirmError: null,
+    });
+    expect(extractText(renderer.toJSON())).toContain('Read confirmation required');
   });
 });
 

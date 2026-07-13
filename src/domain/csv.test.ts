@@ -22,6 +22,30 @@ describe('toCsvRow (RFC 4180)', () => {
   });
 });
 
+describe('toCsvRow — CSV/formula injection (CWE-1236)', () => {
+  it('prefixes a "=" formula payload with a quote (e.g. a page title set to a HYPERLINK payload)', () => {
+    expect(toCsvRow(['=1+1'])).toBe("'=1+1");
+  });
+
+  it('prefixes a leading "+", "-", or "@" the same way', () => {
+    expect(toCsvRow(['+1+1'])).toBe("'+1+1");
+    expect(toCsvRow(['-1+1'])).toBe("'-1+1");
+    expect(toCsvRow(['@SUM(1)'])).toBe("'@SUM(1)");
+  });
+
+  it('does not touch a value with no formula-trigger leading character', () => {
+    expect(toCsvRow(['Security Policy'])).toBe('Security Policy');
+  });
+
+  it('does not touch a numeric cell even if it happens to be negative', () => {
+    expect(toCsvRow([-1])).toBe('-1');
+  });
+
+  it('still applies RFC 4180 quoting after neutralizing when the payload also contains a comma', () => {
+    expect(toCsvRow(['=A,B'])).toBe('"\'=A,B"');
+  });
+});
+
 describe('toCsv', () => {
   it('BOM-prefixes the file and CRLF-joins header + rows', () => {
     const csv = toCsv(['col1', 'col2'], [['a', 1], ['b', null]]);

@@ -96,6 +96,8 @@ export const en = {
   'export.download': 'Download {format}',
   'export.statusFilter': 'Status',
   'export.spaceKey': 'Space key',
+  'export.contextError':
+    "Couldn't load this page's context, so the export scope (page or space) can't be determined safely. Reopen Export from the dashboard, drill-down, or settings page to try again.",
 
   'detail.back': 'Back to dashboard',
   'detail.summary': '{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',

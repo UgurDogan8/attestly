@@ -295,6 +295,35 @@ describe('getPageDetail — counter self-heal (tech design §5)', () => {
     const config = await getPageConfig('page-1');
     expect(config?.updatedAt).toBe('unchanged'); // savePageConfig was never called again
   });
+
+  it('a concurrent saveConfig mid-drill-down is not reverted by the self-heal write (regression: self-heal used to write back the config snapshot read at the start of the request, clobbering any edit that landed while permission checks were still running)', async () => {
+    await asManager();
+    await savePageConfig(
+      aPageConfig({ pageId: 'page-1', assignedUsers: ['acc-1'], dueDate: null, counters: { confirmedCurrentVersion: 99 } }),
+    );
+    await writeConfirmation(aConfirmation({ pageId: 'page-1', accountId: 'acc-1', pageVersion: 1 }));
+
+    let concurrentEditApplied = false;
+    fakeApi.setHandler(async (url) => {
+      // The per-user permission check happens well after this request's own initial
+      // getPageConfig read -- landing a concurrent edit here simulates an admin's
+      // saveConfig completing while this drill-down request is still mid-flight.
+      if (url.includes('/permission/check') && !concurrentEditApplied) {
+        concurrentEditApplied = true;
+        await savePageConfig(
+          aPageConfig({ pageId: 'page-1', assignedUsers: ['acc-1'], dueDate: '2026-12-31', counters: { confirmedCurrentVersion: 99 } }),
+        );
+      }
+      return defaultHandler()(url);
+    });
+
+    await getPageDetail({ pageId: 'page-1' }, 'acc-viewer');
+
+    const healed = await getPageConfig('page-1');
+    expect(concurrentEditApplied).toBe(true); // the race window was actually exercised
+    expect(healed?.counters.confirmedCurrentVersion).toBe(1); // still self-healed
+    expect(healed?.dueDate).toBe('2026-12-31'); // the concurrent edit survived, not reverted
+  });
 });
 
 describe('getPageHistory (data model §2.4 — History tab)', () => {
@@ -351,8 +380,9 @@ describe('getPageHistory (data model §2.4 — History tab)', () => {
     expect(data.entries[1]).toEqual({
       at: '2026-07-01T00:00:00.000Z',
       actorName: 'Jane Admin',
-      // acc-1 has no mock — falls back to the same "unresolvable" label the export CSV uses.
-      changes: [{ kind: 'assigned', subjectType: 'user', subjectName: '[deleted user]' }],
+      // acc-1 has no mock -> resolveUserDisplayNameOrNull returns null, not a baked-in
+      // English string; PageDetail.tsx substitutes the localized "deleted user" text.
+      changes: [{ kind: 'assigned', subjectType: 'user', subjectName: null }],
     });
   });
 });

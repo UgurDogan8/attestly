@@ -9,7 +9,13 @@ import { mapWithConcurrency } from './concurrency';
 import { getPageConfig, drainTrackedPages, type PageConfigRecord } from '../storage/configs';
 import { drainByPage } from '../storage/confirmations';
 import { APP_VERSION } from '../version';
-import { ok, err, type Result, type ExportFilePayload, type ExportFileResponse, type AssignmentType } from '../shared';
+import { ok, err, isUnresolvedSpaceKey, type Result, type ExportFilePayload, type ExportFileResponse, type AssignmentType } from '../shared';
+
+/** Found in review: the dashboard's "unresolved space key" placeholder (Dashboard.tsx) was never
+ * applied here, so the raw numeric spaceId fallback (auth.ts's resolveSpaceKey) leaked into the
+ * CSV/PDF audit artifact handed to a third party. English/ASCII to match this file's existing
+ * machine-readable conventions (status/assignment_type are already unlocalized enum strings). */
+const UNRESOLVED_SPACE_KEY_PLACEHOLDER = '(unresolved)';
 
 /**
  * exportFile (T11/T12, revised post-PR-review — docs/07 §5). Runs entirely
@@ -34,6 +40,12 @@ import { ok, err, type Result, type ExportFilePayload, type ExportFileResponse, 
  */
 
 const PERMISSION_CHECK_CONCURRENCY = 10;
+// Kept modest (unlike PERMISSION_CHECK_CONCURRENCY's per-page 10) since each
+// page already fans out up to PERMISSION_CHECK_CONCURRENCY permission checks
+// of its own -- this bounds the *product* of the two to a similar order of
+// magnitude as a single large page used to issue alone, rather than
+// multiplying page-level and user-level concurrency together unchecked.
+const PAGE_PROCESSING_CONCURRENCY = 4;
 
 async function candidatePages(payload: ExportFilePayload): Promise<PageConfigRecord[]> {
   if (payload.scope === 'page') {
@@ -63,11 +75,34 @@ interface ExportPage {
 interface PageRowsContext {
   page: ExportPage;
   displayNameCache: Map<string, string>;
+  groupMembersOf: (groupId: string) => Promise<string[]>;
   exportedAtUtc: string;
 }
 
+/**
+ * Memoizes getGroupMemberAccountIds for the lifetime of one exportFile call.
+ * Found in review: a site/space-wide export previously re-fetched the same
+ * group's full member list once per page that group was assigned to -- a
+ * group required on hundreds of pages (the common case for a site-wide
+ * "everyone reads this" policy) paid for the same paginated fetch hundreds
+ * of times in a single export. Caches the in-flight promise (not just the
+ * resolved value) so pages processed concurrently for the same group share
+ * one fetch rather than each starting their own before any completes.
+ */
+function createGroupMembersLookup(): (groupId: string) => Promise<string[]> {
+  const cache = new Map<string, Promise<string[]>>();
+  return (groupId: string) => {
+    let entry = cache.get(groupId);
+    if (!entry) {
+      entry = getGroupMemberAccountIds(groupId);
+      cache.set(groupId, entry);
+    }
+    return entry;
+  };
+}
+
 async function buildPageRows(ctx: PageRowsContext): Promise<ExportRow[]> {
-  const { page, displayNameCache, exportedAtUtc } = ctx;
+  const { page, displayNameCache, groupMembersOf, exportedAtUtc } = ctx;
   const config = page.config;
 
   const latestByAccount = new Map<string, ConfirmationRecord>();
@@ -80,7 +115,7 @@ async function buildPageRows(ctx: PageRowsContext): Promise<ExportRow[]> {
     }
   }
 
-  const groupMembers = await Promise.all(config.assignedGroups.map((id) => getGroupMemberAccountIds(id)));
+  const groupMembers = await Promise.all(config.assignedGroups.map((id) => groupMembersOf(id)));
   const eligibleIds = new Set(config.assignedUsers);
   for (const members of groupMembers) {
     for (const accountId of members) {
@@ -119,7 +154,7 @@ async function buildPageRows(ctx: PageRowsContext): Promise<ExportRow[]> {
     return {
       pageTitle: page.deleted ? `[deleted page ${config.pageId}]` : (page.title ?? config.pageId),
       pageId: config.pageId,
-      spaceKey: config.spaceKey,
+      spaceKey: isUnresolvedSpaceKey(config.spaceKey) ? UNRESOLVED_SPACE_KEY_PLACEHOLDER : config.spaceKey,
       pageVersionConfirmed: status === 'outstanding' || status === 'cannot-view' ? null : (latest?.pageVersion ?? null),
       userDisplayName: await displayNameFor(accountId),
       userAccountId: accountId,
@@ -170,12 +205,18 @@ export async function exportFile(payload: ExportFilePayload, accountId: string):
 
   const exportedAtUtc = new Date().toISOString();
   const displayNameCache = new Map<string, string>();
-  const rows: ExportRow[] = [];
+  const groupMembersOf = createGroupMembersLookup();
 
-  for (const page of pages) {
-    const pageRows = await buildPageRows({ page, displayNameCache, exportedAtUtc });
-    rows.push(...pageRows.filter((row) => matchesDateRange(row, payload.dateFrom, payload.dateTo)));
-  }
+  // Found in review: pages were processed one at a time despite being fully
+  // independent (each has its own confirmations, group members, and
+  // permission checks) -- a site-wide export of hundreds of pages paid for
+  // hundreds of sequential round-trip chains instead of overlapping them.
+  const pageRowSets = await mapWithConcurrency(pages, PAGE_PROCESSING_CONCURRENCY, (page) =>
+    buildPageRows({ page, displayNameCache, groupMembersOf, exportedAtUtc }),
+  );
+  const rows: ExportRow[] = pageRowSets
+    .flat()
+    .filter((row) => matchesDateRange(row, payload.dateFrom, payload.dateTo));
 
   const dateStamp = exportedAtUtc.slice(0, 10);
 

@@ -86,12 +86,14 @@ export async function handler(
       return {};
     }
 
-    const currentVersion = await readCurrentVersionAsApp(contentId);
+    const [currentVersion, config, latest] = await Promise.all([
+      readCurrentVersionAsApp(contentId),
+      getPageConfig(contentId),
+      getLatestConfirmation(contentId, accountId),
+    ]);
     if (currentVersion === null) {
       return {};
     }
-
-    const [config, latest] = await Promise.all([getPageConfig(contentId), getLatestConfirmation(contentId, accountId)]);
 
     const isAssigned =
       !!config &&

@@ -136,7 +136,23 @@ export function buildDashboardRow(config: PageConfigRecord, visibility: PageVisi
   // not computed from its (now frozen, possibly stale) counters.
   const percent = deleted ? { kind: 'none' as const } : computeAdvisoryPercent(assignedCount, config.counters.confirmedCurrentVersion);
   const isComplete = percent.kind === 'value' && percent.percent >= 1;
-  const overdue = !deleted && !!config.dueDate && !isComplete && percent.kind === 'value' && config.dueDate < todayIsoDate();
+  // Bug found in review (2026-07-12): `overdue` used to also require
+  // `percent.kind === 'value'`, which requires `assignedCount > 0` --
+  // direct users only (the disclosed simplification above never resolves
+  // group membership for the list view). A page assigned *only* via a
+  // group (assignedUsers: [], assignedGroups: ['x']) always had
+  // `assignedCount === 0`, so `percent` was always `{kind:'none'}` and the
+  // page could never be flagged overdue no matter how late it was --
+  // silently exempting the exact assignment style the UX copy itself
+  // recommends ("For teams, prefer groups"). Fixed by checking
+  // "is anything assigned at all" (direct or group) separately from the
+  // advisory percent: a voluntary-only page (neither) still can never be
+  // overdue: a group-only page now can be, on a past due date, same as a
+  // page with direct assignees -- exact completion is still one click away
+  // in the drill-down, same as the percent column already tells the viewer
+  // for any group-assigned page.
+  const hasAnyAssignment = assignedCount > 0 || config.assignedGroups.length > 0;
+  const overdue = !deleted && !!config.dueDate && hasAnyAssignment && !isComplete && config.dueDate < todayIsoDate();
 
   return {
     pageId: config.pageId,

@@ -16,6 +16,22 @@ export type Result<T> =
 export const ok = <T>(data: T): Result<T> => ({ ok: true, data });
 export const err = (code: string, message: string): Result<never> => ({ ok: false, code, message });
 
+/**
+ * `resolveSpaceKey()` (resolvers/auth.ts) falls back to the raw numeric
+ * `spaceId` when it can't resolve a real key (no space-read scope is
+ * requested — a deliberate scope-minimization tradeoff, docs/07 §6). Real
+ * Confluence space keys always start with a letter, so an all-digits value
+ * is always that fallback, never a genuine key. Shared (not duplicated)
+ * because it must produce the same "this isn't a real key" answer wherever
+ * `PageConfigRecord.spaceKey` is displayed: the dashboard table
+ * (Dashboard.tsx, a placeholder + tooltip) and the CSV/PDF export (found in
+ * review: the export formats fed the raw id straight into an audit
+ * artifact handed to a third party, with none of the dashboard's context).
+ */
+export function isUnresolvedSpaceKey(spaceKey: string): boolean {
+  return /^\d+$/.test(spaceKey);
+}
+
 /** getPageStatus (macro, byline — tech design §4). Single round-trip renders the whole surface. */
 export interface PageStatusPayload {
   pageId: string;
@@ -36,8 +52,19 @@ export interface PageStatusResponse {
   isAssigned: boolean;
   /** UTC ISO timestamp of the latest confirmation, if any (R3: "You
    * confirmed version {v} on {datetime}" needs this on page load, not just
-   * right after a fresh confirm click). Null when status is outstanding/expired. */
+   * right after a fresh confirm click). Null only when `status` is
+   * 'outstanding' (no confirmation ever recorded) — populated for both
+   * 'confirmed' and 'expired', since R4 (see `confirmedVersion` below) needs
+   * the prior confirmation's own timestamp/version, not just that one exists. */
   confirmedAt: string | null;
+  /** Page version the latest confirmation (above) was recorded against.
+   * Equal to `pageVersion` when `status` is 'confirmed'; strictly less than
+   * it when `status` is 'expired' (reconfirmOnChange caught a version bump
+   * since the reader last confirmed) — R4 ("You confirmed version {old}; the
+   * page is now version {new}", ConfirmBlock.tsx) needs both numbers, not
+   * just the fact that a stale confirmation exists. Null exactly when
+   * `confirmedAt` is null (never confirmed). */
+  confirmedVersion: number | null;
   /** Whether the *current* user could open the config modal (T7: page edit
    * permission OR compliance manager) — a UX hint only, so the macro can
    * decide whether to show the "Configure" button at all. getConfig/
@@ -217,15 +244,25 @@ export interface GetPageHistoryPayload {
  * PageDetail, see that file's docstring). `dueDate` stays a raw ISO date
  * (never pre-formatted) so the client can render it in the viewer's own
  * locale, same as every other date in this app.
+ *
+ * `subjectName`/`actorName` are `null`, not a baked-in English placeholder,
+ * when the account/group can no longer be resolved (found in review: the
+ * resolver used to hardcode `'[deleted user]'`/`'[deleted group]'` directly
+ * into these fields, which then got interpolated straight into an otherwise
+ * fully localized `detail.history.*` sentence — an English fragment stuck
+ * inside a Turkish sentence for a Turkish-locale viewer. `null` lets the
+ * client choose the localized `t('detail.deletedUser')`/`t('detail.groupDeleted')`
+ * text instead, same as `PageDetail.tsx` already does for `row.deletedUser`
+ * in the assignment tables.
  */
 export type HistoryChangeView =
-  | { kind: 'assigned'; subjectType: 'user' | 'group'; subjectName: string }
-  | { kind: 'removed'; subjectType: 'user' | 'group'; subjectName: string }
+  | { kind: 'assigned'; subjectType: 'user' | 'group'; subjectName: string | null }
+  | { kind: 'removed'; subjectType: 'user' | 'group'; subjectName: string | null }
   | { kind: 'dueDate'; dueDate: string | null };
 
 export interface HistoryEntryView {
   at: string;
-  actorName: string;
+  actorName: string | null;
   changes: HistoryChangeView[];
 }
 

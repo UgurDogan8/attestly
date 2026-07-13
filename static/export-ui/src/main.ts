@@ -223,10 +223,40 @@ function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey:
   app.append(el('div', { className: 'export-page' }, [header, card]));
 }
 
+/**
+ * Bug found in review: `view.getContext()` rejecting used to fall through to
+ * `render(t, undefined, undefined)` — the exact same form as opening Export
+ * with no scope at all (Settings' "Export all data"). A manager who opened
+ * this page from a *page* drill-down or a *space*-filtered dashboard would
+ * see a normal-looking, fully working form with no indication that its
+ * scope silently widened to "entire site" — they could export (and hand to
+ * an auditor) far more data than intended without ever knowing why. Failing
+ * the page instead of guessing is the safe default for a compliance export.
+ */
+function renderContextError(t: Translator): void {
+  const app = document.getElementById('app');
+  if (!app) {
+    return;
+  }
+  app.replaceChildren();
+
+  const header = el('div', { className: 'export-header' }, [
+    el('div', { className: 'export-icon' }, [icon('download')]),
+    el('div', { className: 'export-heading' }, [el('h1', { textContent: t('export.title') })]),
+  ]);
+  const errorBox = el('div', { className: 'export-status export-status--error' }, [
+    icon('alert'),
+    el('span', { textContent: t('export.contextError') }),
+  ]);
+  const card = el('div', { className: 'export-card' }, [errorBox]);
+
+  app.append(el('div', { className: 'export-page' }, [header, card]));
+}
+
 view
   .getContext()
   .then((context) => {
     const { fixedPageId, initialSpaceKey } = readScopeParams(context);
     render(createTranslator(resolveLocale(context?.locale)), fixedPageId, initialSpaceKey);
   })
-  .catch(() => render(createTranslator('en'), undefined, undefined));
+  .catch(() => renderContextError(createTranslator('en')));

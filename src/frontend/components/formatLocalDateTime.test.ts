@@ -41,4 +41,22 @@ describe('formatLocalDate', () => {
   it('different dates produce different output', () => {
     expect(formatLocalDate('2026-08-15')).not.toBe(formatLocalDate('2026-01-01'));
   });
+
+  describe('west-of-UTC viewer (regression: this repo\'s own CI/dev machines are UTC+3 or later, so this exact bug — a date-only string parsed as UTC-midnight, then formatted in the viewer\'s local timezone — never showed up in any manual test east of UTC)', () => {
+    const originalTz = process.env.TZ;
+
+    beforeAll(() => {
+      process.env.TZ = 'America/Los_Angeles'; // UTC-7/-8: any date-only string parsed as UTC midnight renders one day early here if the bug is present.
+    });
+
+    afterAll(() => {
+      process.env.TZ = originalTz;
+    });
+
+    it('renders the stored calendar day, not the previous day', () => {
+      const formatted = formatLocalDate('2026-08-15');
+      expect(formatted).toContain('15');
+      expect(formatted).not.toContain('14');
+    });
+  });
 });

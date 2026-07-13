@@ -205,6 +205,21 @@ describe('exportFile — CSV generation', () => {
     expect(csv).toContain(',acc-1,assigned,outstanding,,');
   });
 
+  it('substitutes a placeholder for an unresolved (raw numeric) space key instead of leaking it into the export (regression: the dashboard\'s same fix was never applied here)', async () => {
+    await asManager();
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: '327684', assignedUsers: ['acc-1'] }));
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      return jsonResponse(200, { displayName: 'X' });
+    });
+
+    const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
+    expect(csv).toContain('Security Policy,page-1,(unresolved),');
+    expect(csv).not.toContain('327684');
+  });
+
   it('emits a confirmed row with its version and confirmed_at_utc', async () => {
     await asManager();
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));

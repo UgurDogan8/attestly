@@ -200,6 +200,19 @@ describe('buildDashboardRow', () => {
     expect(row?.percent).toEqual({ kind: 'none' });
     expect(row?.overdue).toBe(false);
   });
+
+  it('a page assigned only via a group (no direct users) can still be overdue (regression: assignedCount alone used to force overdue=false for every group-only page)', () => {
+    const config = aPageConfig({ assignedUsers: [], assignedGroups: ['team-x'], dueDate: '2020-01-01' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    expect(row?.percent).toEqual({ kind: 'none' }); // still advisory-none -- list view never resolves group membership
+    expect(row?.overdue).toBe(true);
+  });
+
+  it('a group-only page with a future due date is not overdue', () => {
+    const config = aPageConfig({ assignedUsers: [], assignedGroups: ['team-x'], dueDate: '2999-01-01' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    expect(row?.overdue).toBe(false);
+  });
 });
 
 describe('matchesStatusFilter', () => {

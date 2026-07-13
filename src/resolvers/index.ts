@@ -37,6 +37,8 @@ import {
   isConfluenceAdmin,
   searchGroupsByQuery,
   resolveGroupNames,
+  getCurrentUserGroupIds,
+  type GroupMembershipLookup,
 } from './auth';
 import { getDashboardRows } from './dashboard';
 import { getPageDetail, getPageHistory } from './pageDetail';
@@ -59,31 +61,60 @@ function requireAccountId(request: Request<unknown>): string {
   return accountId;
 }
 
-async function resolveIsAssigned(config: PageConfigRecord | undefined, accountId: string): Promise<boolean> {
+async function resolveIsAssigned(
+  config: PageConfigRecord | undefined,
+  accountId: string,
+  memberOfLookup?: GroupMembershipLookup,
+): Promise<boolean> {
   if (!config) {
     return false;
   }
   if (config.assignedUsers.includes(accountId)) {
     return true;
   }
-  return isMemberOfAnyGroup(accountId, config.assignedGroups);
+  return isMemberOfAnyGroup(accountId, config.assignedGroups, memberOfLookup);
+}
+
+/** Memoizes getCurrentUserGroupIds for the lifetime of one resolver call — shared by canConfigure and resolveIsAssigned in getPageStatus so a request needing both never fetches the same account's group memberships twice. */
+function createGroupMembershipLookup(accountId: string): GroupMembershipLookup {
+  let cached: Promise<Set<string>> | undefined;
+  return () => (cached ??= getCurrentUserGroupIds(accountId));
+}
+
+/**
+ * Every resolver below except `confirm` (which deliberately reports a fixed,
+ * non-detail message on any failure — tech design §8) shares the exact same
+ * "require an accountId, run the handler, map any thrown error to a generic
+ * INTERNAL_ERROR" wrapper. Factored out once nine call sites had it
+ * character-for-character identical.
+ */
+function withErrorHandling<Payload, Data>(
+  fn: (payload: Payload, accountId: string) => Promise<Result<Data>>,
+): (request: Request<Payload>) => Promise<Result<Data>> {
+  return async (request) => {
+    try {
+      const accountId = requireAccountId(request);
+      return await fn(request.payload, accountId);
+    } catch (error) {
+      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+    }
+  };
 }
 
 export function registerResolvers(resolver: Resolver): void {
-  resolver.define<PageStatusPayload, Result<PageStatusResponse>>('getPageStatus', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      const { pageId } = request.payload;
-
+  resolver.define<PageStatusPayload, Result<PageStatusResponse>>(
+    'getPageStatus',
+    withErrorHandling(async ({ pageId }, accountId) => {
       const pageRead = await readPageAsUser(pageId);
       if (!pageRead.ok) {
         return err('PAGE_READ_FAILED', `Could not read page ${pageId} (status ${pageRead.status}).`);
       }
 
+      const memberOfLookup = createGroupMembershipLookup(accountId);
       const [config, latest, mayConfigure] = await Promise.all([
         getPageConfig(pageId),
         getLatestConfirmation(pageId, accountId),
-        canConfigure(pageId, accountId),
+        canConfigure(pageId, accountId, memberOfLookup),
       ]);
 
       const reconfirmOnChange = config?.reconfirmOnChange ?? false;
@@ -102,14 +133,13 @@ export function registerResolvers(resolver: Resolver): void {
         status,
         pageVersion: pageRead.page.version,
         dueDate: config?.dueDate ?? null,
-        isAssigned: await resolveIsAssigned(config, accountId),
+        isAssigned: await resolveIsAssigned(config, accountId, memberOfLookup),
         confirmedAt: latest?.confirmedAt ?? null,
+        confirmedVersion: latest?.pageVersion ?? null,
         canConfigure: mayConfigure,
       });
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+    }),
+  );
 
   resolver.define<ConfirmPayload, Result<ConfirmResponse>>('confirm', async (request) => {
     try {
@@ -161,11 +191,9 @@ export function registerResolvers(resolver: Resolver): void {
     }
   });
 
-  resolver.define<GetConfigPayload, Result<ConfigResponse>>('getConfig', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      const { pageId } = request.payload;
-
+  resolver.define<GetConfigPayload, Result<ConfigResponse>>(
+    'getConfig',
+    withErrorHandling(async ({ pageId }, accountId) => {
       if (!(await canConfigure(pageId, accountId))) {
         return err('FORBIDDEN', 'You need page edit permission or compliance-manager access to view this configuration.');
       }
@@ -179,16 +207,12 @@ export function registerResolvers(resolver: Resolver): void {
         dueDate: config?.dueDate ?? null,
         reconfirmOnChange: config?.reconfirmOnChange ?? false,
       });
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+    }),
+  );
 
-  resolver.define<SaveConfigPayload, Result<ConfigResponse>>('saveConfig', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      const { pageId, assignedUsers, assignedGroups, dueDate, reconfirmOnChange } = request.payload;
-
+  resolver.define<SaveConfigPayload, Result<ConfigResponse>>(
+    'saveConfig',
+    withErrorHandling(async ({ pageId, assignedUsers, assignedGroups, dueDate, reconfirmOnChange }, accountId) => {
       if (!(await canConfigure(pageId, accountId))) {
         return err('FORBIDDEN', 'You need page edit permission or compliance-manager access to change this configuration.');
       }
@@ -252,16 +276,12 @@ export function registerResolvers(resolver: Resolver): void {
         dueDate,
         reconfirmOnChange,
       });
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+    }),
+  );
 
-  resolver.define<SearchGroupsPayload, Result<GroupOption[]>>('searchGroups', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      const { pageId, query } = request.payload;
-
+  resolver.define<SearchGroupsPayload, Result<GroupOption[]>>(
+    'searchGroups',
+    withErrorHandling(async ({ pageId, query }, accountId) => {
       // T7's config modal passes pageId (gate: canConfigure); T13's
       // settings page has no page context and gates on isConfluenceAdmin
       // instead (shared/types.ts's SearchGroupsPayload docstring).
@@ -276,62 +296,36 @@ export function registerResolvers(resolver: Resolver): void {
       }
 
       return ok(await searchGroupsByQuery(query));
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+    }),
+  );
 
-  resolver.define<GetDashboardPayload, Result<GetDashboardResponse>>('getDashboard', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      return await getDashboardRows(request.payload, accountId);
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<GetDashboardPayload, Result<GetDashboardResponse>>(
+    'getDashboard',
+    withErrorHandling((payload, accountId) => getDashboardRows(payload, accountId)),
+  );
 
-  resolver.define<GetPageDetailPayload, Result<GetPageDetailResponse>>('getPageDetail', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      return await getPageDetail(request.payload, accountId);
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<GetPageDetailPayload, Result<GetPageDetailResponse>>(
+    'getPageDetail',
+    withErrorHandling((payload, accountId) => getPageDetail(payload, accountId)),
+  );
 
-  resolver.define<GetPageHistoryPayload, Result<GetPageHistoryResponse>>('getPageHistory', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      return await getPageHistory(request.payload, accountId);
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<GetPageHistoryPayload, Result<GetPageHistoryResponse>>(
+    'getPageHistory',
+    withErrorHandling((payload, accountId) => getPageHistory(payload, accountId)),
+  );
 
-  resolver.define<ExportFilePayload, Result<ExportFileResponse>>('exportFile', async (request) => {
-    try {
-      const accountId = requireAccountId(request);
-      return await exportFile(request.payload, accountId);
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<ExportFilePayload, Result<ExportFileResponse>>(
+    'exportFile',
+    withErrorHandling((payload, accountId) => exportFile(payload, accountId)),
+  );
 
-  resolver.define<GetSettingsPayload, Result<GetSettingsResponse>>('getSettings', async (request) => {
-    try {
-      requireAccountId(request);
-      return await getSettingsForAdmin();
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<GetSettingsPayload, Result<GetSettingsResponse>>(
+    'getSettings',
+    withErrorHandling(() => getSettingsForAdmin()),
+  );
 
-  resolver.define<SaveSettingsPayload, Result<GetSettingsResponse>>('saveSettings', async (request) => {
-    try {
-      requireAccountId(request);
-      return await saveSettingsForAdmin(request.payload);
-    } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
-    }
-  });
+  resolver.define<SaveSettingsPayload, Result<GetSettingsResponse>>(
+    'saveSettings',
+    withErrorHandling((payload) => saveSettingsForAdmin(payload)),
+  );
 }

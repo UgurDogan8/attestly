@@ -255,6 +255,38 @@ describe('PageDetail — History tab (lazy load)', () => {
     expect(text).not.toContain('{"');
   });
 
+  it('substitutes localized text for a null actorName/subjectName instead of rendering "null" (i18n fix — resolver returns null, not a baked-in English string, for a since-deleted user/group)', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: detailResponse() });
+    const renderer = await mount();
+
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        entries: [
+          {
+            at: '2026-07-01T00:00:00.000Z',
+            actorName: null,
+            changes: [
+              { kind: 'assigned', subjectType: 'user', subjectName: null },
+              { kind: 'removed', subjectType: 'group', subjectName: null },
+            ],
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+    await act(async () => {
+      renderer.root.findByType(Tabs).props.onChange(4);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const text = extractText(renderer.toJSON());
+    expect(text).toContain('deleted user assigned deleted user');
+    expect(text).toContain('deleted user removed group deleted');
+    expect(text).not.toContain('null');
+  });
+
   it('shows "no history yet" when the log is empty', async () => {
     bridge.invoke.mockResolvedValueOnce({ ok: true, data: detailResponse() });
     const renderer = await mount();

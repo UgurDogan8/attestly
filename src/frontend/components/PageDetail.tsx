@@ -78,13 +78,22 @@ function assignmentLozengeAppearance(row: DetailUserRow): 'default' | 'moved' {
   return row.assignmentType === 'voluntary' || row.assignmentSource === null ? 'default' : 'moved';
 }
 
-/** History tab line (data model §2.4): one full localized sentence per diffed change. */
-function historyChangeText(t: I18n['t'], actorName: string, change: HistoryChangeView): string {
+/**
+ * History tab line (data model §2.4): one full localized sentence per diffed
+ * change. actorName/subjectName come back null from the resolver for a
+ * since-deleted user or group (auth.ts's resolveUserDisplayNameOrNull,
+ * resolveGroupNames) rather than a baked-in English placeholder — i18n stays
+ * client-side (docs/07 §4), so the null->localized-text substitution happens
+ * here, not on the server.
+ */
+function historyChangeText(t: I18n['t'], actorName: string | null, change: HistoryChangeView): string {
+  const actor = actorName ?? t('detail.deletedUser');
   if (change.kind === 'dueDate') {
-    return t('detail.history.dueDate', { actor: actorName, date: change.dueDate ? formatLocalDate(change.dueDate) : '—' });
+    return t('detail.history.dueDate', { actor, date: change.dueDate ? formatLocalDate(change.dueDate) : '—' });
   }
   const key = change.kind === 'assigned' ? 'detail.history.assigned' : 'detail.history.removed';
-  return t(key, { actor: actorName, subject: change.subjectName });
+  const subject = change.subjectName ?? (change.subjectType === 'group' ? t('detail.groupDeleted') : t('detail.deletedUser'));
+  return t(key, { actor, subject });
 }
 
 /** One small icon per history change kind — a quick visual cue in an otherwise plain-text timeline. */

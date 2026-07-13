@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Button,
@@ -20,6 +20,7 @@ import {
 import type { IconProps } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
+import { useDebouncedCallback } from './useDebouncedCallback';
 import { SurfaceHeader } from './SurfaceHeader';
 import { openExportPage } from './exportNavigation';
 import type {
@@ -97,7 +98,12 @@ export function SettingsPage(): React.JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const groupSearchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const groupSearch = useDebouncedCallback(async (query: string) => {
+    const result = await searchGroupsInvoke.run({ query });
+    if (result.ok) {
+      setGroupSearchOptions(result.data.map((g) => ({ label: g.name, value: g.id })));
+    }
+  }, GROUP_SEARCH_DEBOUNCE_MS);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,28 +132,13 @@ export function SettingsPage(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (groupSearchTimer.current) {
-        clearTimeout(groupSearchTimer.current);
-      }
-    };
-  }, []);
-
   function handleGroupInputChange(query: string): void {
-    if (groupSearchTimer.current) {
-      clearTimeout(groupSearchTimer.current);
-    }
     if (!query) {
+      groupSearch.cancel();
       setGroupSearchOptions([]);
       return;
     }
-    groupSearchTimer.current = setTimeout(async () => {
-      const result = await searchGroupsInvoke.run({ query });
-      if (result.ok) {
-        setGroupSearchOptions(result.data.map((g) => ({ label: g.name, value: g.id })));
-      }
-    }, GROUP_SEARCH_DEBOUNCE_MS);
+    groupSearch.run(query);
   }
 
   async function handleSave(): Promise<void> {

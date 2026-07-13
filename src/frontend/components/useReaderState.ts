@@ -120,6 +120,11 @@ export function useReaderState(): ReaderState {
         status: result.data.status,
         pageVersion: result.data.pageVersion,
         confirmedAt: result.data.confirmedAt,
+        // A fresh confirm always records against the version just rendered
+        // (tech design §6.3 -- pageChanged is a separate, non-confirming
+        // outcome branched above), so the newly confirmed version and the
+        // page version rendered are the same number here.
+        confirmedVersion: result.data.pageVersion,
       },
     });
   }

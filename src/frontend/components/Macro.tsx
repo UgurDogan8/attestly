@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Button, LoadingButton, SectionMessage, Spinner, Stack, Text } from '@forge/react';
+import { Button, Stack } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useReaderState } from './useReaderState';
 import { ConfirmBlock } from './ConfirmBlock';
 import { ConfigModal } from './ConfigModal';
+import { ReaderPhaseView } from './ReaderPhaseView';
 
 /**
  * Reader states R1–R7 (UX doc §2.1). R4 (expired-specific copy) is folded
@@ -46,48 +47,22 @@ export function Macro(): React.JSX.Element | null {
     }
   }
 
-  switch (phase.kind) {
-    case 'loading':
-      return <Spinner label={t('common.loadMore')} />;
-
-    case 'unsupportedContentType':
-      // Confluence wouldn't normally place a page macro on non-page content;
-      // a short message beats silently rendering nothing if it happens anyway.
-      return <Text>{t('macro.unsupportedContentType')}</Text>;
-
-    case 'error':
-      return (
-        <SectionMessage appearance="error" title={t('macro.error.title')}>
-          <Text>{phase.message}</Text>
-        </SectionMessage>
-      );
-
-    case 'pageChanged':
-      return (
+  return (
+    <ReaderPhaseView
+      phase={phase}
+      reloading={reloading}
+      handleReload={handleReload}
+      renderReady={(readyPhase) => (
         <Stack space="space.100">
-          <SectionMessage appearance="information" title={t('macro.midread.title')}>
-            <Text>{t('macro.midread.body')}</Text>
-          </SectionMessage>
-          <LoadingButton isLoading={reloading} onClick={handleReload}>
-            {t('macro.midread.reload')}
-          </LoadingButton>
-        </Stack>
-      );
-
-    case 'ready':
-      return (
-        <Stack space="space.100">
-          <ConfirmBlock status={phase.status} onConfirm={handleConfirm} confirming={confirming} confirmError={confirmError} />
-          {phase.status.canConfigure ? (
+          <ConfirmBlock status={readyPhase.status} onConfirm={handleConfirm} confirming={confirming} confirmError={confirmError} />
+          {readyPhase.status.canConfigure ? (
             <Button onClick={() => setIsConfigModalOpen(true)}>{t('config.openButton')}</Button>
           ) : null}
           {isConfigModalOpen && pageId ? (
             <ConfigModal pageId={pageId} onClose={() => setIsConfigModalOpen(false)} onSaved={handleConfigSaved} />
           ) : null}
         </Stack>
-      );
-
-    default:
-      return null;
-  }
+      )}
+    />
+  );
 }
