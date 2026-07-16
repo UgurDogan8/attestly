@@ -21,6 +21,20 @@ describe('confirmationKey (data model §2.1 — deterministic -> idempotent)', (
   it('has the expected shape', () => {
     expect(confirmationKey('page-1', 'acc-1', 7)).toBe('confirm#page-1#acc-1#7');
   });
+
+  it('rejects a pageId containing "#" (review finding, docs/07 §7.1: key-segment collision)', () => {
+    expect(() => confirmationKey('123#acc-2#5', 'acc-1', 7)).toThrow(/#/);
+  });
+});
+
+describe('pageId key-segment safety (review finding, docs/07 §7.1)', () => {
+  it('pageConfigKey rejects a pageId containing "#"', () => {
+    expect(() => pageConfigKey('123#other')).toThrow(/#/);
+  });
+
+  it('configAuditKey rejects a pageId containing "#"', () => {
+    expect(() => configAuditKey('123#other', '2026-07-09T00:00:00Z', 'n1')).toThrow(/#/);
+  });
 });
 
 describe('pageConfigKey / configAuditKey / SETTINGS_KEY', () => {

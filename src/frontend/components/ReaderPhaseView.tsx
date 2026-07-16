@@ -23,7 +23,7 @@ export function ReaderPhaseView({ phase, reloading, handleReload, renderReady }:
 
   switch (phase.kind) {
     case 'loading':
-      return <Spinner label={t('common.loadMore')} />;
+      return <Spinner label={t('common.loading')} />;
 
     case 'unsupportedContentType':
       // Confluence wouldn't normally place a page macro on non-page content;

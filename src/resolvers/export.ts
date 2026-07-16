@@ -39,6 +39,11 @@ const UNRESOLVED_SPACE_KEY_PLACEHOLDER = '(unresolved)';
  *     `expired`, not just `confirmed`/`outstanding`.
  */
 
+/** Data model §4: exported timestamps are YYYY-MM-DDTHH:mm:ssZ, no milliseconds. */
+function dropMilliseconds(iso: string): string {
+  return iso.replace(/\.\d{3}Z$/, 'Z');
+}
+
 const PERMISSION_CHECK_CONCURRENCY = 10;
 // Kept modest (unlike PERMISSION_CHECK_CONCURRENCY's per-page 10) since each
 // page already fans out up to PERMISSION_CHECK_CONCURRENCY permission checks
@@ -160,7 +165,7 @@ async function buildPageRows(ctx: PageRowsContext): Promise<ExportRow[]> {
       userAccountId: accountId,
       assignmentType,
       status,
-      confirmedAtUtc: latest?.confirmedAt ?? null,
+      confirmedAtUtc: latest ? dropMilliseconds(latest.confirmedAt) : null,
       dueDate: config.dueDate,
       exportedAtUtc,
       appVersion: APP_VERSION,
@@ -203,7 +208,7 @@ export async function exportFile(payload: ExportFilePayload, accountId: string):
     })
     .filter((page): page is ExportPage => page !== null);
 
-  const exportedAtUtc = new Date().toISOString();
+  const exportedAtUtc = dropMilliseconds(new Date().toISOString());
   const displayNameCache = new Map<string, string>();
   const groupMembersOf = createGroupMembersLookup();
 

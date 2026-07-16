@@ -10,6 +10,7 @@ import {
   LoadingButton,
   Lozenge,
   ProgressBar,
+  SectionMessage,
   Select,
   Spinner,
   Stack,
@@ -21,6 +22,7 @@ import {
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { useDebouncedCallback } from './useDebouncedCallback';
+import { useLatestOnly } from './useLatestOnly';
 import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
@@ -56,8 +58,9 @@ export interface DashboardProps {
 }
 
 export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const dashboardInvoke = useInvoke<GetDashboardPayload, GetDashboardResponse>('getDashboard');
+  const { runLatest } = useLatestOnly();
 
   const [rows, setRows] = useState<DashboardRow[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -66,6 +69,12 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   const [forbidden, setForbidden] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [exportNavError, setExportNavError] = useState(false);
+
+  async function handleExportClick(): Promise<void> {
+    const opened = await openExportPage({ spaceKey: spaceKeyInput || undefined });
+    setExportNavError(!opened);
+  }
 
   /**
    * Takes filters as explicit arguments rather than reading spaceKeyInput/
@@ -77,7 +86,13 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
    * sent the previous filter).
    */
   async function runFilteredFetch(filters: { spaceKey?: string; statusFilter: StatusFilter; cursor?: string }): Promise<void> {
-    const result = await dashboardInvoke.run(filters);
+    // Review finding: a slower, older filter response landing after a
+    // faster, newer one must not overwrite it -- runLatest discards any
+    // result that's no longer the most recent in-flight request.
+    const result = await runLatest(() => dashboardInvoke.run(filters));
+    if (result === undefined) {
+      return;
+    }
 
     if (!result.ok) {
       if (result.code === 'FORBIDDEN') {
@@ -143,7 +158,7 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   }
 
   if (!initialLoadDone) {
-    return <Spinner label={t('common.loadMore')} />;
+    return <Spinner label={t('common.loading')} />;
   }
 
   if (loadError) {
@@ -213,7 +228,7 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
         key: 'due',
         content: row.dueDate ? (
           <Inline space="space.100" alignBlock="center">
-            <Text color={row.overdue ? 'color.text.danger' : undefined}>{formatLocalDate(row.dueDate)}</Text>
+            <Text color={row.overdue ? 'color.text.danger' : undefined}>{formatLocalDate(row.dueDate, locale)}</Text>
             {row.overdue ? <Lozenge appearance="danger">{t('dashboard.overdueBadge')}</Lozenge> : null}
           </Inline>
         ) : (
@@ -230,11 +245,17 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
         title={t('dashboard.title')}
         subtitle={t('dashboard.subtitle')}
         action={
-          <Button iconBefore="export" onClick={() => openExportPage({ spaceKey: spaceKeyInput || undefined })}>
+          <Button iconBefore="export" onClick={() => void handleExportClick()}>
             {t('dashboard.export')}
           </Button>
         }
       />
+
+      {exportNavError ? (
+        <SectionMessage appearance="error">
+          <Text>{t('export.navError')}</Text>
+        </SectionMessage>
+      ) : null}
 
       <Box backgroundColor="color.background.neutral.subtle" padding="space.150" xcss={toolbarStyles}>
         <Inline space="space.200" alignBlock="center">

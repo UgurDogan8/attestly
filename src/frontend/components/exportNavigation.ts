@@ -33,11 +33,16 @@ const EXPORT_MODULE_KEY = 'acknowledge-export';
  * navigating — one resolution call handles the module lookup, `URL`'s own
  * `searchParams` handles the pageId/spaceKey scope that the typed location
  * shape can't carry.
+ *
+ * Returns `false` (review finding) when `router.getUrl` can't resolve the
+ * export module's URL, instead of silently doing nothing — callers must
+ * surface this to the viewer rather than leave the Export button looking
+ * unresponsive.
  */
-export async function openExportPage(params: ExportNavigationParams = {}): Promise<void> {
+export async function openExportPage(params: ExportNavigationParams = {}): Promise<boolean> {
   const url = await router.getUrl({ target: NavigationTarget.Module, moduleKey: EXPORT_MODULE_KEY, spaceKey: params.spaceKey });
   if (!url) {
-    return;
+    return false;
   }
   if (params.pageId) {
     url.searchParams.set('pageId', params.pageId);
@@ -46,4 +51,5 @@ export async function openExportPage(params: ExportNavigationParams = {}): Promi
     url.searchParams.set('spaceKey', params.spaceKey);
   }
   await router.navigate(url.toString());
+  return true;
 }

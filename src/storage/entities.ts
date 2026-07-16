@@ -14,13 +14,29 @@ export const ENTITY = {
   configAudit: 'config-audit',
 } as const;
 
+/**
+ * Review finding (docs/07 §7.1): key builders below interpolate a
+ * caller-supplied `pageId` unescaped between `#`-delimited segments -- a
+ * `pageId` containing `#` could collide/shift key segments (e.g. forge a
+ * `confirmationKey` that lands on another account's slot). Throws rather
+ * than escaping/truncating: a `#` in a pageId is never legitimate (a real
+ * Confluence page ID is purely numeric), so failing loudly here is strictly
+ * safer than trying to silently sanitize a value that should never occur.
+ */
+function assertSafeKeySegment(pageId: string): string {
+  if (pageId.includes('#')) {
+    throw new Error(`pageId must not contain '#' (KVS key delimiter): ${pageId}`);
+  }
+  return pageId;
+}
+
 /** Deterministic → idempotent (tech design §6.1). Keys hold identity only. */
 export const confirmationKey = (pageId: string, accountId: string, pageVersion: number): string =>
-  `confirm#${pageId}#${accountId}#${pageVersion}`;
+  `confirm#${assertSafeKeySegment(pageId)}#${accountId}#${pageVersion}`;
 
-export const pageConfigKey = (pageId: string): string => `config#${pageId}`;
+export const pageConfigKey = (pageId: string): string => `config#${assertSafeKeySegment(pageId)}`;
 
 export const SETTINGS_KEY = 'settings#global';
 
 export const configAuditKey = (pageId: string, atIso: string, nonce: string): string =>
-  `cfgaudit#${pageId}#${atIso}#${nonce}`;
+  `cfgaudit#${assertSafeKeySegment(pageId)}#${atIso}#${nonce}`;

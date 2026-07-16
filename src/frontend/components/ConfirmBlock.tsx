@@ -29,7 +29,7 @@ export interface ConfirmBlockProps {
  * scaffolded string needs and the only piece 'expired' was missing.
  */
 export function ConfirmBlock({ status, onConfirm, confirming, confirmError }: ConfirmBlockProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   if (status.status === 'cannot-view') {
     // Not reachable via getPageStatus today (tech design §4: the viewer of
@@ -46,7 +46,7 @@ export function ConfirmBlock({ status, onConfirm, confirming, confirmError }: Co
           {status.confirmedAt
             ? t('macro.confirmed.body', {
                 version: status.pageVersion,
-                datetime: formatLocalDateTime(status.confirmedAt),
+                datetime: formatLocalDateTime(status.confirmedAt, locale),
               })
             : ''}
         </Text>
@@ -75,7 +75,7 @@ export function ConfirmBlock({ status, onConfirm, confirming, confirmError }: Co
               ? t('macro.required.body')
               : t('macro.voluntary.body')}
         </Text>
-        {required && status.dueDate ? <Text>{t('macro.due', { date: formatLocalDate(status.dueDate) })}</Text> : null}
+        {required && status.dueDate ? <Text>{t('macro.due', { date: formatLocalDate(status.dueDate, locale) })}</Text> : null}
       </SectionMessage>
       {confirmError ? (
         <SectionMessage appearance="error" title={t('macro.error.title')}>

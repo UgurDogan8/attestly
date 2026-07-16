@@ -23,6 +23,7 @@ import {
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { useDebouncedCallback } from './useDebouncedCallback';
+import { useLatestOnly } from './useLatestOnly';
 import type {
   GetConfigPayload,
   ConfigResponse,
@@ -109,10 +110,13 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
   const [assignedGroups, setAssignedGroups] = useState<GroupOption[]>([]);
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [groupSearchOptions, setGroupSearchOptions] = useState<SelectOption[]>([]);
+  const { runLatest } = useLatestOnly();
 
   const groupSearch = useDebouncedCallback(async (query: string) => {
-    const result = await searchGroupsInvoke.run({ pageId, query });
-    if (result.ok) {
+    // Review finding: an older, slower search response landing after a
+    // newer one must not overwrite it.
+    const result = await runLatest(() => searchGroupsInvoke.run({ pageId, query }));
+    if (result?.ok) {
       setGroupSearchOptions(toSelectOptions(result.data));
     }
   }, GROUP_SEARCH_DEBOUNCE_MS);
@@ -176,7 +180,7 @@ export function ConfigModal({ pageId, onClose, onSaved }: ConfigModalProps): Rea
     <ModalTransition>
       <Modal onClose={onClose} width="large" title={t('config.title')}>
         <ModalBody>
-          {loading ? <Spinner label={t('common.loadMore')} /> : null}
+          {loading ? <Spinner label={t('common.loading')} /> : null}
           {loadError ? (
             <SectionMessage appearance="error">
               <Text>{loadError}</Text>

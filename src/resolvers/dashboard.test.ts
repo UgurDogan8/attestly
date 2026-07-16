@@ -46,25 +46,25 @@ describe('resolvePageVisibility (tech design §4, normative)', () => {
     expect(await resolvePageVisibility([])).toEqual(new Map());
   });
 
-  it('marks pages returned by the bulk asUser call as visible with their title', async () => {
+  it('marks pages returned by the bulk asUser call as visible with their title and version', async () => {
     fakeApi.setHandler((url) => {
       expect(url).toBe('/wiki/api/v2/pages?id=page-1,page-2&limit=100');
       return jsonResponse(200, {
         results: [
-          { id: 'page-1', title: 'Security Policy' },
-          { id: 'page-2', title: 'Code of Conduct' },
+          { id: 'page-1', title: 'Security Policy', version: { number: 3 } },
+          { id: 'page-2', title: 'Code of Conduct', version: { number: 1 } },
         ],
       });
     });
     const result = await resolvePageVisibility(['page-1', 'page-2']);
-    expect(result.get('page-1')).toEqual({ kind: 'visible', title: 'Security Policy' });
-    expect(result.get('page-2')).toEqual({ kind: 'visible', title: 'Code of Conduct' });
+    expect(result.get('page-1')).toEqual({ kind: 'visible', title: 'Security Policy', version: 3 });
+    expect(result.get('page-2')).toEqual({ kind: 'visible', title: 'Code of Conduct', version: 1 });
   });
 
   it('probes pages missing from the bulk response: 404 -> deleted, 200 -> restricted', async () => {
     fakeApi.setHandler((url) => {
       if (url.startsWith('/wiki/api/v2/pages?')) {
-        return jsonResponse(200, { results: [{ id: 'page-1', title: 'Visible Page' }] });
+        return jsonResponse(200, { results: [{ id: 'page-1', title: 'Visible Page', version: { number: 1 } }] });
       }
       if (url === '/wiki/api/v2/pages/page-2') {
         return jsonResponse(404, {});
@@ -76,9 +76,24 @@ describe('resolvePageVisibility (tech design §4, normative)', () => {
     });
 
     const result = await resolvePageVisibility(['page-1', 'page-2', 'page-3']);
-    expect(result.get('page-1')).toEqual({ kind: 'visible', title: 'Visible Page' });
+    expect(result.get('page-1')).toEqual({ kind: 'visible', title: 'Visible Page', version: 1 });
     expect(result.get('page-2')).toEqual({ kind: 'deleted' });
     expect(result.get('page-3')).toEqual({ kind: 'restricted' });
+  });
+
+  it('review finding: a bulk-response page missing version.number is not trusted as visible -- falls through to the existence probe instead of silently defaulting', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.startsWith('/wiki/api/v2/pages?')) {
+        return jsonResponse(200, { results: [{ id: 'page-1', title: 'No Version' }] });
+      }
+      if (url === '/wiki/api/v2/pages/page-1') {
+        return jsonResponse(404, {});
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+
+    const result = await resolvePageVisibility(['page-1']);
+    expect(result.get('page-1')).toEqual({ kind: 'deleted' });
   });
 
   it('falls through every id to the existence probe when the bulk call fails', async () => {
@@ -123,7 +138,7 @@ describe('resolvePageVisibility (tech design §4, normative)', () => {
         bulkCalls.push(url);
         const idsParam = new URL(`https://x${url}`).searchParams.get('id') ?? '';
         const ids = idsParam.split(',');
-        return jsonResponse(200, { results: ids.map((id) => ({ id, title: `Title ${id}` })) });
+        return jsonResponse(200, { results: ids.map((id) => ({ id, title: `Title ${id}`, version: { number: 1 } })) });
       }
       throw new Error(`unexpected existence-probe call for ${url}`);
     });
@@ -134,7 +149,7 @@ describe('resolvePageVisibility (tech design §4, normative)', () => {
     expect(bulkCalls).toHaveLength(2);
     expect(result.size).toBe(150);
     for (const id of pageIds) {
-      expect(result.get(id)).toEqual({ kind: 'visible', title: `Title ${id}` });
+      expect(result.get(id)).toEqual({ kind: 'visible', title: `Title ${id}`, version: 1 });
     }
   });
 });
@@ -163,7 +178,7 @@ describe('buildDashboardRow', () => {
       counters: { confirmedCurrentVersion: 1 },
       dueDate: null,
     });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'Security Policy' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'Security Policy', version: 1 });
     expect(row).toEqual({
       pageId: 'page-1',
       title: 'Security Policy',
@@ -178,39 +193,39 @@ describe('buildDashboardRow', () => {
 
   it('overdue: incomplete + past due date', () => {
     const config = aPageConfig({ assignedUsers: ['acc-1'], counters: { confirmedCurrentVersion: 0 }, dueDate: '2020-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.overdue).toBe(true);
   });
 
   it('not overdue when already 100% complete, even with a past due date', () => {
     const config = aPageConfig({ assignedUsers: ['acc-1'], counters: { confirmedCurrentVersion: 1 }, dueDate: '2020-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.overdue).toBe(false);
   });
 
   it('not overdue when the due date is in the future', () => {
     const config = aPageConfig({ assignedUsers: ['acc-1'], counters: { confirmedCurrentVersion: 0 }, dueDate: '2999-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.overdue).toBe(false);
   });
 
   it('a voluntary-only page (0 assigned) is never overdue, regardless of due date', () => {
     const config = aPageConfig({ assignedUsers: [], assignedGroups: [], dueDate: '2020-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.percent).toEqual({ kind: 'none' });
     expect(row?.overdue).toBe(false);
   });
 
   it('a page assigned only via a group (no direct users) can still be overdue (regression: assignedCount alone used to force overdue=false for every group-only page)', () => {
     const config = aPageConfig({ assignedUsers: [], assignedGroups: ['team-x'], dueDate: '2020-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.percent).toEqual({ kind: 'none' }); // still advisory-none -- list view never resolves group membership
     expect(row?.overdue).toBe(true);
   });
 
   it('a group-only page with a future due date is not overdue', () => {
     const config = aPageConfig({ assignedUsers: [], assignedGroups: ['team-x'], dueDate: '2999-01-01' });
-    const row = buildDashboardRow(config, { kind: 'visible', title: 'X' });
+    const row = buildDashboardRow(config, { kind: 'visible', title: 'X', version: 1 });
     expect(row?.overdue).toBe(false);
   });
 });
@@ -264,7 +279,8 @@ describe('getDashboardRows (role gate + orchestration)', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-2'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?'))
+        return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       return jsonResponse(404, {});
     });
 
@@ -281,7 +297,8 @@ describe('getDashboardRows (role gate + orchestration)', () => {
     await savePageConfig(aPageConfig({ pageId: 'restricted-page', spaceKey: 'SEC' }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'visible-page', title: 'Visible' }] });
+      if (url.startsWith('/wiki/api/v2/pages?'))
+        return jsonResponse(200, { results: [{ id: 'visible-page', title: 'Visible', version: { number: 1 } }] });
       if (url === '/wiki/api/v2/pages/restricted-page') return jsonResponse(200, {}); // exists, but not in bulk -> restricted
       return jsonResponse(404, {});
     });
@@ -304,8 +321,8 @@ describe('getDashboardRows (role gate + orchestration)', () => {
       if (url.startsWith('/wiki/api/v2/pages?')) {
         return jsonResponse(200, {
           results: [
-            { id: 'done', title: 'Done' },
-            { id: 'not-done', title: 'Not done' },
+            { id: 'done', title: 'Done', version: { number: 1 } },
+            { id: 'not-done', title: 'Not done', version: { number: 1 } },
           ],
         });
       }
@@ -325,7 +342,7 @@ describe('getDashboardRows (role gate + orchestration)', () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
       if (url.startsWith('/wiki/api/v2/pages?')) {
-        return jsonResponse(200, { results: [{ id: 'sec-page', title: 'SEC page' }] });
+        return jsonResponse(200, { results: [{ id: 'sec-page', title: 'SEC page', version: { number: 1 } }] });
       }
       return jsonResponse(404, {});
     });

@@ -21,6 +21,7 @@ import type { IconProps } from '@forge/react';
 import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { useDebouncedCallback } from './useDebouncedCallback';
+import { useLatestOnly } from './useLatestOnly';
 import { SurfaceHeader } from './SurfaceHeader';
 import { openExportPage } from './exportNavigation';
 import type {
@@ -97,13 +98,22 @@ export function SettingsPage(): React.JSX.Element {
   const [groupSearchOptions, setGroupSearchOptions] = useState<GroupSelectOption[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [exportNavError, setExportNavError] = useState(false);
+  const { runLatest } = useLatestOnly();
 
   const groupSearch = useDebouncedCallback(async (query: string) => {
-    const result = await searchGroupsInvoke.run({ query });
-    if (result.ok) {
+    // Review finding: an older, slower search response landing after a
+    // newer one must not overwrite it.
+    const result = await runLatest(() => searchGroupsInvoke.run({ query }));
+    if (result?.ok) {
       setGroupSearchOptions(result.data.map((g) => ({ label: g.name, value: g.id })));
     }
   }, GROUP_SEARCH_DEBOUNCE_MS);
+
+  async function handleExportClick(): Promise<void> {
+    const opened = await openExportPage();
+    setExportNavError(!opened);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -166,7 +176,7 @@ export function SettingsPage(): React.JSX.Element {
   }
 
   if (!initial) {
-    return <Spinner label={t('common.loadMore')} />;
+    return <Spinner label={t('common.loading')} />;
   }
 
   const defaultGroupOption: GroupSelectOption | undefined = initial.complianceManagersGroupId
@@ -223,8 +233,13 @@ export function SettingsPage(): React.JSX.Element {
 
       <SettingsSection icon="download" title={t('settings.exportAll')}>
         <HelperMessage>{t('settings.exportAll.hint')}</HelperMessage>
+        {exportNavError ? (
+          <SectionMessage appearance="error">
+            <Text>{t('export.navError')}</Text>
+          </SectionMessage>
+        ) : null}
         <Box>
-          <Button iconBefore="export" onClick={() => openExportPage()}>
+          <Button iconBefore="export" onClick={() => void handleExportClick()}>
             {t('settings.exportAll')}
           </Button>
         </Box>

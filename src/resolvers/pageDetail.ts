@@ -120,7 +120,7 @@ export async function getPageDetail(payload: GetPageDetailPayload, accountId: st
 
   const deleted = visibility.kind === 'deleted';
   const title = visibility.kind === 'visible' ? visibility.title : null;
-  const currentVersion = visibility.kind === 'visible' ? (visibility.version ?? null) : null;
+  const currentVersion = visibility.kind === 'visible' ? visibility.version : null;
 
   const [groupMemberEntries, groupOptions, latestByAccount] = await Promise.all([
     Promise.all(config.assignedGroups.map(async (groupId): Promise<[string, string[]]> => [groupId, await getGroupMemberAccountIds(groupId)])),

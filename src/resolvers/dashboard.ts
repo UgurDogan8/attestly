@@ -1,6 +1,7 @@
 import api, { route } from '@forge/api';
 import { computeAdvisoryPercent } from '../domain/status';
 import { isComplianceManager } from './auth';
+import { mapWithConcurrency } from './concurrency';
 import { queryTrackedPage, type PageConfigRecord } from '../storage/configs';
 import { ok, err, type Result, type GetDashboardPayload, type GetDashboardResponse, type DashboardRow, type StatusFilter } from '../shared';
 
@@ -23,7 +24,15 @@ import { ok, err, type Result, type GetDashboardPayload, type GetDashboardRespon
  * row) to tell deleted (404) apart from viewer-restricted (200, omitted
  * entirely). This is the one place asApp() answers a question about
  * content the viewer might not be able to see themselves — limited to
- * "does it exist at all", never its title or content.
+ * "does it exist at all", never its title or content. This satisfies the
+ * review concern that asApp() must never hand a viewer data their own
+ * permissions wouldn't allow (Confluence content-permissions API:
+ * https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content-permissions/):
+ * the probe result only ever collapses to `deleted` or `restricted`, so a
+ * viewer who can't see the page never learns anything about it beyond what
+ * their own tracked-page list already told them. The probe itself is
+ * bounded by EXISTENCE_PROBE_CONCURRENCY, same as every other asApp/asUser
+ * fan-out in this app (mapWithConcurrency, ./concurrency).
  *
  * "Never fan out across confirmation records" (tech design §5): row counts
  * come from the page-config's advisory aggregate fields only
@@ -42,7 +51,7 @@ import { ok, err, type Result, type GetDashboardPayload, type GetDashboardRespon
  */
 
 export type PageVisibility =
-  | { kind: 'visible'; title: string; version?: number }
+  | { kind: 'visible'; title: string; version: number }
   | { kind: 'deleted' }
   | { kind: 'restricted' };
 
@@ -52,6 +61,9 @@ interface BulkPagesResponse {
 
 /** Confluence v2 pages GET's own page cap; matches this app's own MAX_PAGE_SIZE chunking. */
 const BULK_FETCH_LIMIT = 100;
+
+/** Same concurrency as every other asApp/asUser fan-out in this app (./concurrency). */
+const EXISTENCE_PROBE_CONCURRENCY = 10;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -91,7 +103,17 @@ export async function resolvePageVisibility(pageIds: string[]): Promise<Map<stri
         if (response.ok) {
           const body = (await response.json()) as BulkPagesResponse;
           for (const page of body.results ?? []) {
-            result.set(page.id, { kind: 'visible', title: page.title, version: page.version?.number });
+            // Review finding: a bulk result without a version number must
+            // NOT be trusted as `visible` -- exportFile/pageDetail fall back
+            // to the confirmer's own last-confirmed version whenever
+            // `visible.version` is missing, which silently re-labels an
+            // expired confirmation as still-confirmed with no error. Treat
+            // it the same as a failed batch: fall through to the existence
+            // probe below instead.
+            if (page.version?.number === undefined) {
+              continue;
+            }
+            result.set(page.id, { kind: 'visible', title: page.title, version: page.version.number });
           }
         }
       } catch {
@@ -101,21 +123,22 @@ export async function resolvePageVisibility(pageIds: string[]): Promise<Map<stri
   );
 
   const missing = pageIds.filter((id) => !result.has(id));
-  await Promise.all(
-    missing.map(async (id) => {
-      try {
-        const probe = await api.asApp().requestConfluence(route`/wiki/api/v2/pages/${id}`, {
-          headers: { Accept: 'application/json' },
-        });
-        // 404 -> trashed/purged (data model §3.1: page-deleted). Any other
-        // status (200 restricted, or an unexpected error status) fails
-        // closed to "restricted" -- omitted entirely, never a guess at content.
-        result.set(id, probe.status === 404 ? { kind: 'deleted' } : { kind: 'restricted' });
-      } catch {
-        result.set(id, { kind: 'restricted' });
-      }
-    }),
-  );
+  const probed = await mapWithConcurrency(missing, EXISTENCE_PROBE_CONCURRENCY, async (id): Promise<[string, PageVisibility]> => {
+    try {
+      const probe = await api.asApp().requestConfluence(route`/wiki/api/v2/pages/${id}`, {
+        headers: { Accept: 'application/json' },
+      });
+      // 404 -> trashed/purged (data model §3.1: page-deleted). Any other
+      // status (200 restricted, or an unexpected error status) fails
+      // closed to "restricted" -- omitted entirely, never a guess at content.
+      return [id, probe.status === 404 ? { kind: 'deleted' } : { kind: 'restricted' }];
+    } catch {
+      return [id, { kind: 'restricted' }];
+    }
+  });
+  for (const [id, visibility] of probed) {
+    result.set(id, visibility);
+  }
 
   return result;
 }

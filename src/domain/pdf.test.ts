@@ -11,15 +11,15 @@ function row(overrides: Partial<ExportRow> = {}): ExportRow {
     userAccountId: 'acc-1',
     assignmentType: 'assigned',
     status: 'confirmed',
-    confirmedAtUtc: '2026-07-09T12:00:00.000Z',
+    confirmedAtUtc: '2026-07-09T12:00:00Z',
     dueDate: null,
-    exportedAtUtc: '2026-07-09T13:00:00.000Z',
+    exportedAtUtc: '2026-07-09T13:00:00Z',
     appVersion: '0.1.0',
     ...overrides,
   };
 }
 
-const header: PdfReportHeader = { scope: 'site', exportedAtUtc: '2026-07-09T13:00:00.000Z', appVersion: '0.1.0' };
+const header: PdfReportHeader = { scope: 'site', exportedAtUtc: '2026-07-09T13:00:00Z', appVersion: '0.1.0' };
 
 function bufferText(buf: Buffer): string {
   return buf.toString('latin1');
@@ -108,7 +108,7 @@ describe('buildPdf — content parity with the CSV rows (docs/07 §5)', () => {
     const text = bufferText(buf);
     const occurrences = text.split('scope: site').length - 1;
     expect(occurrences).toBe(1);
-    expect(text).toContain('exported: 2026-07-09T13:00:00.000Z');
+    expect(text).toContain('exported: 2026-07-09T13:00:00Z');
     expect(text).toContain('app v0.1.0');
   });
 

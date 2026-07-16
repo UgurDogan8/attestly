@@ -1,16 +1,25 @@
+import type { Locale } from '../../shared';
+
 /**
  * Local-timezone display of a server-stored UTC value (UX doc R3: "Local
  * timezone display; UTC stored"). Runs client-side (UI Kit resources render
- * in the viewer's own browser), so `Intl`/`Date` correctly reflect the
- * viewer's own locale/timezone via the `undefined` locale idiom below.
+ * in the viewer's own browser), so `Date`'s own runtime timezone is always
+ * the viewer's — that part needs no locale argument at all.
+ *
+ * `locale` (review finding) picks the language *Intl* renders month names
+ * etc. in — previously `undefined` let the browser's own locale decide,
+ * which could disagree with the app's own resolved en/tr language (e.g. an
+ * English-configured Confluence viewer on a Turkish-locale OS). Passing the
+ * app's resolved locale (useI18n()'s `locale`) keeps dates consistent with
+ * every other piece of UI text on the page.
  *
  * Deliberately simpler than the UX mockup's literal "(UTC+3)" suffix —
  * a numeric offset label needs `timeZoneName` support that isn't reliably
  * available everywhere; the functional requirement (show local time, not
  * raw UTC) doesn't need it.
  */
-export function formatLocalDateTime(isoUtc: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+export function formatLocalDateTime(isoUtc: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -35,9 +44,9 @@ export function formatLocalDateTime(isoUtc: string): string {
  * constructor, which stays on the same calendar day when formatted back in
  * that same (viewer's) timezone, regardless of UTC offset.
  */
-export function formatLocalDate(isoDate: string): string {
+export function formatLocalDate(isoDate: string, locale: Locale): string {
   const [year, month, day] = isoDate.split('-').map(Number);
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

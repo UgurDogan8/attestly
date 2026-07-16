@@ -48,7 +48,10 @@ function visibleHandler(pages: { id: string; title: string; version?: number }[]
   return (url: string) => {
     if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
     if (url.startsWith('/wiki/api/v2/pages?')) {
-      return jsonResponse(200, { results: pages.map((p) => ({ id: p.id, title: p.title, version: p.version ? { number: p.version } : undefined })) });
+      // Review finding: a bulk result without version.number is no longer
+      // trusted as visible -- default to 1 here so tests unrelated to that
+      // finding keep exercising the "visible" path they were written for.
+      return jsonResponse(200, { results: pages.map((p) => ({ id: p.id, title: p.title, version: { number: p.version ?? 1 } })) });
     }
     if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
     if (url.includes('/user?accountId')) return jsonResponse(200, { displayName: 'X' });
@@ -116,7 +119,8 @@ describe('exportFile — scope resolution (data model §4, visibility rule)', ()
     await savePageConfig(aPageConfig({ pageId: 'restricted-page', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'visible-page', title: 'Visible' }] });
+      if (url.startsWith('/wiki/api/v2/pages?'))
+        return jsonResponse(200, { results: [{ id: 'visible-page', title: 'Visible', version: { number: 1 } }] });
       if (url === '/wiki/api/v2/pages/restricted-page') return jsonResponse(200, {});
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
       if (url.includes('/user?accountId')) return jsonResponse(200, { displayName: 'X' });
@@ -195,7 +199,7 @@ describe('exportFile — CSV generation', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
       return jsonResponse(200, { displayName: 'X' });
     });
@@ -210,7 +214,7 @@ describe('exportFile — CSV generation', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: '327684', assignedUsers: ['acc-1'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
       return jsonResponse(200, { displayName: 'X' });
     });
@@ -232,7 +236,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('3,Ayşe Yılmaz,acc-1,assigned,confirmed,2026-07-01T10:00:00.000Z');
+    expect(csv).toContain('3,Ayşe Yılmaz,acc-1,assigned,confirmed,2026-07-01T10:00:00Z');
   });
 
   it('PR review regression: reports expired, not confirmed, when the page has moved past the confirmed version', async () => {
@@ -272,7 +276,7 @@ describe('exportFile — CSV generation', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-blocked'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: false });
       return jsonResponse(404, {});
     });
@@ -286,7 +290,7 @@ describe('exportFile — CSV generation', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: [], assignedGroups: ['g1'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       if (url.includes('membersByGroupId')) return jsonResponse(200, { results: [{ accountId: 'acc-viaGroup' }] });
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
       return jsonResponse(404, {});
@@ -322,7 +326,7 @@ describe('exportFile — PDF generation (T12)', () => {
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
       return jsonResponse(200, { displayName: 'X' });
     });
@@ -358,7 +362,23 @@ describe('exportFile — PDF generation (T12)', () => {
     expect(csv).toContain('acc-2,assigned,outstanding');
     expect(pdfBody).toContain('acc-2');
     expect(pdfBody).toContain('outstanding');
-    expect(csv).toContain('2026-07-05T00:00:00.000Z');
-    expect(pdfBody).toContain('2026-07-05T00:00:00.000Z');
+    expect(csv).toContain('2026-07-05T00:00:00Z');
+    expect(pdfBody).toContain('2026-07-05T00:00:00Z');
+  });
+
+  it('drops millisecond precision from confirmed_at/exported_at timestamps (data model §4)', async () => {
+    await asManager();
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
+    await writeConfirmation(aConfirmation({ pageId: 'page-1', accountId: 'acc-1', pageVersion: 1, confirmedAt: '2026-07-05T00:00:00.123Z' }));
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      return jsonResponse(200, { displayName: 'X' });
+    });
+
+    const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
+    expect(csv).not.toMatch(/\.\d{3}Z/);
+    expect(csv).toContain('2026-07-05T00:00:00Z');
   });
 });

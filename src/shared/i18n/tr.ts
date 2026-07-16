@@ -6,6 +6,7 @@ export const tr: Record<MessageKey, string> = {
   'common.cancel': 'İptal',
   'common.close': 'Kapat',
   'common.loadMore': 'Daha fazla yükle',
+  'common.loading': 'Yükleniyor…',
   'status.confirmed': 'Onaylandı',
   'status.outstanding': 'Bekliyor',
   'status.expired': 'Yeniden onay gerekli',
@@ -96,6 +97,7 @@ export const tr: Record<MessageKey, string> = {
   'export.spaceKey': 'Alan anahtarı',
   'export.contextError':
     'Bu sayfanın bağlamı yüklenemediği için dışa aktarma kapsamı (sayfa veya alan) güvenli şekilde belirlenemiyor. Tekrar denemek için Export\'u dashboard, drill-down veya ayarlar sayfasından yeniden açın.',
+  'export.navError': 'Dışa aktarma sayfası açılamadı. Lütfen tekrar deneyin.',
 
   'detail.back': 'Kontrol paneline dön',
   'detail.stat.assigned': 'Atanan',

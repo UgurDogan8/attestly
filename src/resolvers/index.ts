@@ -88,6 +88,16 @@ function createGroupMembershipLookup(accountId: string): GroupMembershipLookup {
  * INTERNAL_ERROR" wrapper. Factored out once nine call sites had it
  * character-for-character identical.
  */
+/**
+ * Review finding: the raw `error.message` used to travel straight into the
+ * client-facing Result envelope -- an unhandled storage/REST error could
+ * leak internal detail (stack-adjacent text, upstream error bodies) to the
+ * browser. Forge captures function logs, so the real error is still fully
+ * diagnosable server-side via console.error; only a fixed, generic message
+ * crosses the resolver boundary.
+ */
+const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.';
+
 function withErrorHandling<Payload, Data>(
   fn: (payload: Payload, accountId: string) => Promise<Result<Data>>,
 ): (request: Request<Payload>) => Promise<Result<Data>> {
@@ -96,7 +106,8 @@ function withErrorHandling<Payload, Data>(
       const accountId = requireAccountId(request);
       return await fn(request.payload, accountId);
     } catch (error) {
-      return err('INTERNAL_ERROR', error instanceof Error ? error.message : 'Unknown error.');
+      console.error('[resolver] unhandled error', error);
+      return err('INTERNAL_ERROR', GENERIC_ERROR_MESSAGE);
     }
   };
 }
@@ -107,7 +118,12 @@ export function registerResolvers(resolver: Resolver): void {
     withErrorHandling(async ({ pageId }, accountId) => {
       const pageRead = await readPageAsUser(pageId);
       if (!pageRead.ok) {
-        return err('PAGE_READ_FAILED', `Could not read page ${pageId} (status ${pageRead.status}).`);
+        // Review finding: the upstream HTTP status used to be baked into
+        // the message, turning a 403-vs-404 into a client-visible existence
+        // oracle the docs say to collapse. Logged server-side; the frontend
+        // never branches on this message's content.
+        console.error('[getPageStatus] page read failed', { pageId, status: pageRead.status });
+        return err('PAGE_READ_FAILED', 'Could not read the page.');
       }
 
       const memberOfLookup = createGroupMembershipLookup(accountId);
@@ -148,7 +164,8 @@ export function registerResolvers(resolver: Resolver): void {
 
       const pageRead = await readPageAsUser(pageId);
       if (!pageRead.ok) {
-        return err('PAGE_READ_FAILED', `Could not read page ${pageId} (status ${pageRead.status}).`);
+        console.error('[confirm] page read failed', { pageId, status: pageRead.status });
+        return err('PAGE_READ_FAILED', 'Could not read the page.');
       }
       const serverVersion = pageRead.page.version;
 
@@ -224,7 +241,8 @@ export function registerResolvers(resolver: Resolver): void {
       if (!spaceKey) {
         const pageRead = await readPageAsUser(pageId);
         if (!pageRead.ok) {
-          return err('PAGE_READ_FAILED', `Could not read page ${pageId} (status ${pageRead.status}).`);
+          console.error('[saveConfig] page read failed', { pageId, status: pageRead.status });
+          return err('PAGE_READ_FAILED', 'Could not read the page.');
         }
         spaceKey = await resolveSpaceKey(pageRead.page.spaceId);
       }

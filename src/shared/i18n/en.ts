@@ -8,6 +8,7 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.loadMore': 'Load more',
+  'common.loading': 'Loading…',
   'status.confirmed': 'Confirmed',
   'status.outstanding': 'Outstanding',
   'status.expired': 'Re-confirmation required',
@@ -98,6 +99,7 @@ export const en = {
   'export.spaceKey': 'Space key',
   'export.contextError':
     "Couldn't load this page's context, so the export scope (page or space) can't be determined safely. Reopen Export from the dashboard, drill-down, or settings page to try again.",
+  'export.navError': "Couldn't open the export page. Please try again.",
 
   'detail.back': 'Back to dashboard',
   'detail.summary': '{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',

@@ -34,6 +34,7 @@ import type {
   GetPageHistoryResponse,
   HistoryEntryView,
   HistoryChangeView,
+  Locale,
 } from '../../shared';
 
 /**
@@ -86,10 +87,10 @@ function assignmentLozengeAppearance(row: DetailUserRow): 'default' | 'moved' {
  * client-side (docs/07 §4), so the null->localized-text substitution happens
  * here, not on the server.
  */
-function historyChangeText(t: I18n['t'], actorName: string | null, change: HistoryChangeView): string {
+function historyChangeText(t: I18n['t'], locale: Locale, actorName: string | null, change: HistoryChangeView): string {
   const actor = actorName ?? t('detail.deletedUser');
   if (change.kind === 'dueDate') {
-    return t('detail.history.dueDate', { actor, date: change.dueDate ? formatLocalDate(change.dueDate) : '—' });
+    return t('detail.history.dueDate', { actor, date: change.dueDate ? formatLocalDate(change.dueDate, locale) : '—' });
   }
   const key = change.kind === 'assigned' ? 'detail.history.assigned' : 'detail.history.removed';
   const subject = change.subjectName ?? (change.subjectType === 'group' ? t('detail.groupDeleted') : t('detail.deletedUser'));
@@ -127,7 +128,7 @@ interface UserRowsTableProps {
 }
 
 function UserRowsTable({ rows, showConfirmedColumns, currentVersion }: UserRowsTableProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   if (rows.length === 0) {
     return <Text>{t('detail.tab.empty')}</Text>;
@@ -151,7 +152,10 @@ function UserRowsTable({ rows, showConfirmedColumns, currentVersion }: UserRowsT
     cells: [
       {
         key: 'user',
-        content: row.deletedUser ? <Text>{t('detail.deletedUser')}</Text> : <User accountId={row.accountId} />,
+        // Review finding: a deleted account was plain text indistinguishable
+        // from a genuine "grant them permission" cannot-view row -- a
+        // distinct lozenge signals "this account no longer exists" instead.
+        content: row.deletedUser ? <Lozenge appearance="default">{t('detail.deletedUser')}</Lozenge> : <User accountId={row.accountId} />,
       },
       {
         key: 'assignment',
@@ -167,7 +171,7 @@ function UserRowsTable({ rows, showConfirmedColumns, currentVersion }: UserRowsT
       ...(showConfirmedColumns
         ? [
             { key: 'version', content: row.pageVersion !== null ? String(row.pageVersion) : '—' },
-            { key: 'confirmedAt', content: row.confirmedAt ? formatLocalDateTime(row.confirmedAt) : '—' },
+            { key: 'confirmedAt', content: row.confirmedAt ? formatLocalDateTime(row.confirmedAt, locale) : '—' },
           ]
         : []),
     ],
@@ -177,13 +181,19 @@ function UserRowsTable({ rows, showConfirmedColumns, currentVersion }: UserRowsT
 }
 
 export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Element {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const detailInvoke = useInvoke<GetPageDetailPayload, GetPageDetailResponse>('getPageDetail');
   const historyInvoke = useInvoke<GetPageHistoryPayload, GetPageHistoryResponse>('getPageHistory');
 
   const [data, setData] = useState<GetPageDetailResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tabIndex, setTabIndex] = useState(TAB_OUTSTANDING);
+  const [exportNavError, setExportNavError] = useState(false);
+
+  async function handleExportClick(): Promise<void> {
+    const opened = await openExportPage({ pageId });
+    setExportNavError(!opened);
+  }
 
   const [historyEntries, setHistoryEntries] = useState<HistoryEntryView[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
@@ -239,7 +249,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
   }
 
   if (!data) {
-    return <Spinner label={t('common.loadMore')} />;
+    return <Spinner label={t('common.loading')} />;
   }
 
   const title = data.deleted ? t('dashboard.deletedPage', { id: data.pageId }) : (data.title ?? data.pageId);
@@ -253,11 +263,16 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
         icon="page"
         title={title}
         action={
-          <Button iconBefore="export" onClick={() => openExportPage({ pageId: data.pageId })}>
+          <Button iconBefore="export" onClick={() => void handleExportClick()}>
             {t('dashboard.export')}
           </Button>
         }
       />
+      {exportNavError ? (
+        <SectionMessage appearance="error">
+          <Text>{t('export.navError')}</Text>
+        </SectionMessage>
+      ) : null}
       <Inline space="space.300" alignBlock="center" shouldWrap>
         <StatChip icon="people-group" label={t('detail.stat.assigned')} value={data.summary.assigned} />
         <StatChip icon="check-mark" label={t('detail.tab.confirmed')} value={data.summary.confirmed} />
@@ -306,7 +321,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
         </TabPanel>
         <TabPanel>
           {!historyLoaded ? (
-            <Spinner label={t('common.loadMore')} />
+            <Spinner label={t('common.loading')} />
           ) : historyEntries.length === 0 ? (
             <Text>{t('detail.history.empty')}</Text>
           ) : (
@@ -314,11 +329,11 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
               {historyEntries.map((entry, i) => (
                 // History has no stable id from the resolver; (at, actorName) can repeat within the same request batch.
                 <Stack key={`${entry.at}#${entry.actorName}#${i}`} space="space.050">
-                  <Text color="color.text.subtle">{formatLocalDateTime(entry.at)}</Text>
+                  <Text color="color.text.subtle">{formatLocalDateTime(entry.at, locale)}</Text>
                   {entry.changes.map((change, j) => (
                     <Inline key={j} space="space.100" alignBlock="center">
                       <Icon glyph={historyChangeIcon(change)} label="" color="color.icon.subtle" size="small" />
-                      <Text>{historyChangeText(t, entry.actorName, change)}</Text>
+                      <Text>{historyChangeText(t, locale, entry.actorName, change)}</Text>
                     </Inline>
                   ))}
                 </Stack>

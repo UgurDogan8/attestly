@@ -61,10 +61,10 @@ const COLUMNS: Column[] = [
   { header: 'ACCOUNT ID', width: 14, get: (r) => r.userAccountId },
   { header: 'TYPE', width: 10, get: (r) => r.assignmentType },
   { header: 'STATUS', width: 12, get: (r) => r.status },
-  // 25, not 20: an ISO 8601 timestamp with milliseconds ("2026-07-05T00:00:00.000Z")
-  // is 24 characters -- a narrower column silently truncated the seconds/Z off
-  // real timestamps, caught by the CSV/PDF record-parity test (resolvers/export.test.ts).
-  { header: 'CONFIRMED AT (UTC)', width: 25, get: (r) => r.confirmedAtUtc ?? '' },
+  // Data model §4: exported timestamps are YYYY-MM-DDTHH:mm:ssZ (no
+  // milliseconds, 20 characters) -- export.ts strips the millisecond suffix
+  // before a row reaches here.
+  { header: 'CONFIRMED AT (UTC)', width: 20, get: (r) => r.confirmedAtUtc ?? '' },
   { header: 'DUE DATE', width: 10, get: (r) => r.dueDate ?? '' },
 ];
 
