@@ -48,8 +48,28 @@ export function toCsvRow(cells: (string | number | null)[]): string {
   return cells.map(formatCell).join(',');
 }
 
-/** Header + rows, CRLF line endings (RFC 4180), BOM-prefixed. */
+/**
+ * Excel doesn't always split this file into columns on open (owner-reported,
+ * 2026-07-22): Excel picks its default CSV list-separator from the OS
+ * region's *number format*, not the file's actual delimiter — on a Turkish
+ * (and many other non-US/UK) Windows locale, the decimal comma makes Excel
+ * default to `;`, so a plain comma-delimited file opens as one unsplit
+ * column per row regardless of how correctly it's built. `sep=,` as the
+ * file's first line is Excel's own documented override for exactly this
+ * (recognized since Excel 2007, independent of regional settings) — Excel
+ * hides the line and opens the rest correctly split. Deliberate tradeoff:
+ * this makes the file not strictly RFC 4180 anymore (an extra directive line
+ * before the header) — a machine consumer that doesn't know Excel's
+ * convention must skip line 1 itself. Chosen anyway because this export's
+ * entire purpose is being opened in a spreadsheet by a person (docs/07 §5),
+ * and every existing caller in this app already reads the CSV by
+ * `.toContain(...)`, never by assuming the header sits on line 1 (which
+ * would have needed updating here rather than there).
+ */
+const EXCEL_SEPARATOR_HINT = 'sep=,\r\n';
+
+/** Header + rows, CRLF line endings (RFC 4180 otherwise), BOM-prefixed, Excel separator hint first. */
 export function toCsv(header: string[], rows: (string | number | null)[][]): string {
   const lines = [toCsvRow(header), ...rows.map(toCsvRow)];
-  return CSV_BOM + lines.join('\r\n');
+  return CSV_BOM + EXCEL_SEPARATOR_HINT + lines.join('\r\n');
 }

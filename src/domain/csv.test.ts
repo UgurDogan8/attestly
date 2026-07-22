@@ -47,13 +47,20 @@ describe('toCsvRow — CSV/formula injection (CWE-1236)', () => {
 });
 
 describe('toCsv', () => {
-  it('BOM-prefixes the file and CRLF-joins header + rows', () => {
+  it('BOM-prefixes the file, then an Excel sep= hint, then CRLF-joined header + rows', () => {
     const csv = toCsv(['col1', 'col2'], [['a', 1], ['b', null]]);
     expect(csv.startsWith(CSV_BOM)).toBe(true);
-    expect(csv).toBe(`${CSV_BOM}col1,col2\r\na,1\r\nb,`);
+    expect(csv).toBe(`${CSV_BOM}sep=,\r\ncol1,col2\r\na,1\r\nb,`);
   });
 
-  it('produces just a header line for zero rows', () => {
-    expect(toCsv(['col1'], [])).toBe(`${CSV_BOM}col1`);
+  it('produces just the sep= hint and a header line for zero rows', () => {
+    expect(toCsv(['col1'], [])).toBe(`${CSV_BOM}sep=,\r\ncol1`);
+  });
+
+  it('the sep= hint fixes Excel opening this on a locale whose list separator is not a comma (owner-reported, 2026-07-22)', () => {
+    // Excel only honors `sep=X` on the file's very first line -- verify it
+    // survives ahead of the BOM-then-header, not buried anywhere else.
+    const csv = toCsv(['col1'], [['a']]);
+    expect(csv.slice(CSV_BOM.length, CSV_BOM.length + 6)).toBe('sep=,\r');
   });
 });

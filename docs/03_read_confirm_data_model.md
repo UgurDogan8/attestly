@@ -147,6 +147,7 @@ status :=
 ## 4. CSV export format (normative — this is the auditor-facing artifact)
 
 - Encoding UTF-8 with BOM (Excel compatibility); RFC 4180 quoting; one row per (page, user) pair in scope, **including outstanding assignees with empty confirmation fields** (PRD F1 — auditors need the negative space).
+- **`sep=,` hint line, right after the BOM, before the header** (bug fix, 2026-07-22): Excel picks its CSV list-separator from the OS region's number format, not the file's actual delimiter — on Turkish (and many other non-US/UK) Windows locales the decimal comma makes Excel default to `;`, so a correctly comma-delimited file opened as one unsplit column per row. `sep=,` is Excel's own documented override, locale-independent. Domain/csv.ts's `toCsv` docstring has the full tradeoff (a machine consumer must now skip line 1 itself — every in-app caller already reads the CSV via `.toContain`, never assumes the header is line 1).
 - Header row, exact column order:
 
 ```
