@@ -1,12 +1,16 @@
 import { CSV_BOM, toCsv, toCsvRow } from './csv';
 
-describe('toCsvRow (RFC 4180, default comma delimiter)', () => {
-  it('joins plain cells with commas, no quoting needed', () => {
-    expect(toCsvRow(['a', 'b', 1])).toBe('a,b,1');
+describe('toCsvRow (tab-delimited, see csv.ts docstring for the format history)', () => {
+  it('joins plain cells with tabs, no quoting needed', () => {
+    expect(toCsvRow(['a', 'b', 1])).toBe('a\tb\t1');
   });
 
-  it('quotes a cell containing a comma', () => {
-    expect(toCsvRow(['Security, Policy', 'x'])).toBe('"Security, Policy",x');
+  it('a comma no longer needs quoting -- it is not the delimiter', () => {
+    expect(toCsvRow(['Security, Policy', 'x'])).toBe('Security, Policy\tx');
+  });
+
+  it('quotes a cell containing an actual tab', () => {
+    expect(toCsvRow(['Security\tPolicy', 'x'])).toBe('"Security\tPolicy"\tx');
   });
 
   it('quotes a cell containing a double quote and doubles it', () => {
@@ -18,21 +22,7 @@ describe('toCsvRow (RFC 4180, default comma delimiter)', () => {
   });
 
   it('renders null as an empty cell', () => {
-    expect(toCsvRow(['a', null, 'c'])).toBe('a,,c');
-  });
-});
-
-describe('toCsvRow — semicolon delimiter (2026-07-22, Excel locale fix)', () => {
-  it('joins cells with semicolons instead of commas', () => {
-    expect(toCsvRow(['a', 'b', 1], ';')).toBe('a;b;1');
-  });
-
-  it('a comma no longer needs quoting once the delimiter is semicolon', () => {
-    expect(toCsvRow(['Security, Policy'], ';')).toBe('Security, Policy');
-  });
-
-  it('a semicolon in the value does need quoting under the semicolon delimiter', () => {
-    expect(toCsvRow(['Security; Policy'], ';')).toBe('"Security; Policy"');
+    expect(toCsvRow(['a', null, 'c'])).toBe('a\t\tc');
   });
 });
 
@@ -55,30 +45,26 @@ describe('toCsvRow — CSV/formula injection (CWE-1236)', () => {
     expect(toCsvRow([-1])).toBe('-1');
   });
 
-  it('still applies RFC 4180 quoting after neutralizing when the payload also contains a comma', () => {
-    expect(toCsvRow(['=A,B'])).toBe('"\'=A,B"');
+  it('still applies quoting after neutralizing when the payload also contains a tab', () => {
+    expect(toCsvRow(['=A\tB'])).toBe('"\'=A\tB"');
   });
 });
 
 describe('toCsv', () => {
-  it('BOM-prefixes the file and CRLF-joins header + rows, comma delimiter by default', () => {
+  it('BOM-prefixes the file and CRLF-joins tab-delimited header + rows', () => {
     const csv = toCsv(['col1', 'col2'], [['a', 1], ['b', null]]);
     expect(csv.startsWith(CSV_BOM)).toBe(true);
-    expect(csv).toBe(`${CSV_BOM}col1,col2\r\na,1\r\nb,`);
+    expect(csv).toBe(`${CSV_BOM}col1\tcol2\r\na\t1\r\nb\t`);
   });
 
   it('produces just a header line for zero rows', () => {
     expect(toCsv(['col1'], [])).toBe(`${CSV_BOM}col1`);
   });
 
-  it('uses semicolons throughout when passed the semicolon delimiter (2026-07-22, Excel locale fix)', () => {
-    const csv = toCsv(['col1', 'col2'], [['a', 1]], ';');
-    expect(csv).toBe(`${CSV_BOM}col1;col2\r\na;1`);
-  });
-
-  it('no longer prepends an Excel `sep=` directive line (reverted 2026-07-22: it stopped Excel honoring the UTF-8 BOM, corrupting Turkish letters) -- the delimiter itself now carries the fix', () => {
-    const csv = toCsv(['col1'], [['a']]);
-    expect(csv.startsWith(`${CSV_BOM}col1`)).toBe(true);
+  it('never emits a comma or semicolon delimiter, and no Excel directive line (2026-07-22: both were tried and reverted)', () => {
+    const csv = toCsv(['col1', 'col2'], [['Ayşe Yılmaz', 'Uğur DOĞAN']]);
     expect(csv).not.toContain('sep=');
+    expect(csv).toContain('col1\tcol2');
+    expect(csv).toContain('Ayşe Yılmaz\tUğur DOĞAN');
   });
 });

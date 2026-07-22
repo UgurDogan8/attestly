@@ -87,8 +87,8 @@ describe('exportFile — scope resolution (data model §4, visibility rule)', ()
     );
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('Sec,sec-page');
-    expect(csv).toContain('HR,hr-page');
+    expect(csv).toContain('Sec\tsec-page');
+    expect(csv).toContain('HR\thr-page');
   });
 
   it('scope "space": includes only that space\'s tracked pages', async () => {
@@ -178,11 +178,16 @@ describe('exportFile — scope resolution (data model §4, visibility rule)', ()
   });
 });
 
-describe('exportFile — CSV generation', () => {
-  it('returns a CSV with the correct headers and a BOM-prefixed body', async () => {
+describe('exportFile — CSV generation (tab-delimited, see domain/csv.ts for the format history)', () => {
+  it('returns a CSV with the correct headers, a BOM-prefixed body, and intact Turkish letters', async () => {
     await asManager();
-    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: [] }));
-    fakeApi.setHandler(visibleHandler([{ id: 'page-1', title: 'Security Policy' }]));
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security Policy', version: { number: 1 } }] });
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      return jsonResponse(200, { displayName: 'Uğur DOĞAN' });
+    });
 
     const result = await exportFile({ format: 'csv', scope: 'site' }, 'acc-1');
     expect(result.ok).toBe(true);
@@ -191,34 +196,9 @@ describe('exportFile — CSV generation', () => {
     expect(data.filename).toMatch(/^read-confirmations_site_\d{4}-\d{2}-\d{2}\.csv$/);
     const csv = (data as { csv: string }).csv;
     expect(csv.charCodeAt(0)).toBe(0xfeff); // BOM
-    expect(csv).toContain('page_title,page_id,space_key');
-  });
-
-  it('uses semicolons throughout when csvDelimiter is ";" (2026-07-22, Excel locale fix -- tr export UI sends this)', async () => {
-    await asManager();
-    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
-    fakeApi.setHandler((url) => {
-      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
-      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security, Policy', version: { number: 1 } }] });
-      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
-      return jsonResponse(200, { displayName: 'X' });
-    });
-
-    const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site', csvDelimiter: ';' }, 'acc-1'));
-    expect(csv).toContain('page_title;page_id;space_key');
-    // A comma in the title no longer needs quoting once the delimiter is ";".
-    expect(csv).toContain('Security, Policy;page-1;SEC;;X;acc-1;assigned;outstanding;;');
+    expect(csv).toContain('page_title\tpage_id\tspace_key');
+    expect(csv).toContain('Uğur DOĞAN');
     expect(csv).not.toContain('sep=');
-  });
-
-  it('defaults to comma when csvDelimiter is omitted', async () => {
-    await asManager();
-    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: [] }));
-    fakeApi.setHandler(visibleHandler([{ id: 'page-1', title: 'Security Policy' }]));
-
-    const result = await exportFile({ format: 'csv', scope: 'site' }, 'acc-1');
-    const csv = (result as { ok: true; data: { csv: string } }).data.csv;
-    expect(csv).toContain('page_title,page_id,space_key');
   });
 
   it('emits one row per assigned user, outstanding when never confirmed (PRD F1: the negative space)', async () => {
@@ -232,8 +212,8 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('Security Policy,page-1,SEC,,');
-    expect(csv).toContain(',acc-1,assigned,outstanding,,');
+    expect(csv).toContain('Security Policy\tpage-1\tSEC\t\t');
+    expect(csv).toContain('\tacc-1\tassigned\toutstanding\t\t');
   });
 
   it('substitutes a placeholder for an unresolved (raw numeric) space key instead of leaking it into the export (regression: the dashboard\'s same fix was never applied here)', async () => {
@@ -247,7 +227,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('Security Policy,page-1,(unresolved),');
+    expect(csv).toContain('Security Policy\tpage-1\t(unresolved)\t');
     expect(csv).not.toContain('327684');
   });
 
@@ -263,7 +243,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('3,Ayşe Yılmaz,acc-1,assigned,confirmed,2026-07-01T10:00:00Z');
+    expect(csv).toContain('3\tAyşe Yılmaz\tacc-1\tassigned\tconfirmed\t2026-07-01T10:00:00Z');
   });
 
   it('PR review regression: reports expired, not confirmed, when the page has moved past the confirmed version', async () => {
@@ -279,8 +259,8 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('acc-1,assigned,expired');
-    expect(csv).not.toContain('acc-1,assigned,confirmed');
+    expect(csv).toContain('acc-1\tassigned\texpired');
+    expect(csv).not.toContain('acc-1\tassigned\tconfirmed');
   });
 
   it('emits a voluntary row for a confirmer who is not assigned', async () => {
@@ -295,7 +275,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('acc-vol,voluntary,confirmed');
+    expect(csv).toContain('acc-vol\tvoluntary\tconfirmed');
   });
 
   it('emits cannot-view for an assigned user who fails the permission check, not outstanding', async () => {
@@ -309,7 +289,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('acc-blocked,assigned,cannot-view');
+    expect(csv).toContain('acc-blocked\tassigned\tcannot-view');
   });
 
   it('resolves group-assigned users via membersByGroupId', async () => {
@@ -324,7 +304,7 @@ describe('exportFile — CSV generation', () => {
     });
 
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
-    expect(csv).toContain('acc-viaGroup,assigned,outstanding');
+    expect(csv).toContain('acc-viaGroup\tassigned\toutstanding');
   });
 
   it('applies the date range to confirmed rows only, never dropping outstanding rows', async () => {
@@ -341,9 +321,9 @@ describe('exportFile — CSV generation', () => {
 
     const payload: ExportFilePayload = { format: 'csv', scope: 'site', dateFrom: '2026-07-01', dateTo: '2026-07-31' };
     const csv = await csvOf(await exportFile(payload, 'acc-1'));
-    expect(csv).toContain('acc-in,assigned,confirmed');
-    expect(csv).not.toContain('acc-out,assigned,confirmed');
-    expect(csv).toContain('acc-never,assigned,outstanding'); // negative space survives the date filter
+    expect(csv).toContain('acc-in\tassigned\tconfirmed');
+    expect(csv).not.toContain('acc-out\tassigned\tconfirmed');
+    expect(csv).toContain('acc-never\tassigned\toutstanding'); // negative space survives the date filter
   });
 });
 
@@ -383,10 +363,10 @@ describe('exportFile — PDF generation (T12)', () => {
     const pdfResult = await exportFile({ format: 'pdf', scope: 'site' }, 'acc-1');
     const pdfBody = Buffer.from((pdfResult as { ok: true; data: { base64: string } }).data.base64, 'base64').toString('latin1');
 
-    expect(csv).toContain('acc-1,assigned,confirmed');
+    expect(csv).toContain('acc-1\tassigned\tconfirmed');
     expect(pdfBody).toContain('acc-1');
     expect(pdfBody).toContain('confirmed');
-    expect(csv).toContain('acc-2,assigned,outstanding');
+    expect(csv).toContain('acc-2\tassigned\toutstanding');
     expect(pdfBody).toContain('acc-2');
     expect(pdfBody).toContain('outstanding');
     expect(csv).toContain('2026-07-05T00:00:00Z');

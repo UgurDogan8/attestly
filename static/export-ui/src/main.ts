@@ -1,22 +1,32 @@
 import { invoke, view } from '@forge/bridge';
 import { createTranslator, resolveLocale } from '../../../src/shared/i18n';
-import type { Translator, Locale } from '../../../src/shared/i18n';
+import type { Translator } from '../../../src/shared/i18n';
 import type { ExportFilePayload, ExportFileResponse, ExportFormat, ExportScope, StatusFilter, Result } from '../../../src/shared/types';
 import './style.css';
 
 /**
- * Excel's own default CSV column separator follows the OS region's decimal
- * format, not the file's actual delimiter (domain/csv.ts's CsvDelimiter
- * docstring has the full incident — a `sep=,` directive line was tried
- * first and reverted the same day for silently breaking Turkish-letter
- * encoding). `tr` locale is used here as this app's only available proxy
- * for "this viewer's Excel likely expects `;`" — Confluence's own locale
- * setting, not the OS region, but the two are correlated closely enough in
- * practice to be worth matching without adding a manifest scope or a new
- * REST call just to ask Windows directly.
+ * Turns the CSV string (domain/csv.ts's docstring has the full incident:
+ * two Excel-locale delimiter guesses in a row both broke on the owner's own
+ * machine) into real UTF-16LE bytes: two little-endian bytes per UTF-16 code
+ * unit — which is exactly what a JS string already is internally, so this is
+ * a direct, lossless transcription, not a re-encoding through any 8-bit
+ * codepage. The string's leading U+FEFF (CSV_BOM) becomes the bytes
+ * `FF FE` this way, which *is* the standard UTF-16LE byte-order mark — no
+ * separate BOM-insertion step needed. This, combined with the tab delimiter
+ * `domain/csv.ts` now always uses, matches Excel's own "Save As → Unicode
+ * Text (*.txt)" format byte-for-byte, which every Excel version has always
+ * auto-opened correctly regardless of regional settings — unlike UTF-8 BOM
+ * CSV, whose auto-detection this file's incident history shows is not
+ * reliable enough to depend on.
  */
-function csvDelimiterFor(locale: Locale): ',' | ';' {
-  return locale === 'tr' ? ';' : ',';
+function utf16LeBytes(text: string) {
+  const bytes = new Uint8Array(text.length * 2);
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    bytes[i * 2] = code & 0xff;
+    bytes[i * 2 + 1] = code >> 8;
+  }
+  return bytes;
 }
 
 /**
@@ -110,7 +120,7 @@ function triggerDownload(filename: string, blob: Blob): void {
 
 function downloadResponse(data: ExportFileResponse): void {
   if (data.format === 'csv') {
-    triggerDownload(data.filename, new Blob([data.csv], { type: 'text/csv;charset=utf-8' }));
+    triggerDownload(data.filename, new Blob([utf16LeBytes(data.csv)], { type: 'text/csv;charset=utf-16le' }));
     return;
   }
   const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
@@ -121,7 +131,7 @@ function field(label: string, control: HTMLElement, opts: { full?: boolean } = {
   return el('div', { className: opts.full ? 'field field--full' : 'field' }, [el('label', { textContent: label }), control]);
 }
 
-function render(t: Translator, locale: Locale, fixedPageId: string | undefined, initialSpaceKey: string | undefined): void {
+function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey: string | undefined): void {
   const app = document.getElementById('app');
   if (!app) {
     return;
@@ -197,7 +207,6 @@ function render(t: Translator, locale: Locale, fixedPageId: string | undefined, 
       statusFilter: statusSelect.value as StatusFilter,
       dateFrom: dateFromInput.value || undefined,
       dateTo: dateToInput.value || undefined,
-      csvDelimiter: csvDelimiterFor(locale),
     };
 
     try {
@@ -273,7 +282,6 @@ view
   .getContext()
   .then((context) => {
     const { fixedPageId, initialSpaceKey } = readScopeParams(context);
-    const locale = resolveLocale(context?.locale);
-    render(createTranslator(locale), locale, fixedPageId, initialSpaceKey);
+    render(createTranslator(resolveLocale(context?.locale)), fixedPageId, initialSpaceKey);
   })
   .catch(() => renderContextError(createTranslator('en')));
