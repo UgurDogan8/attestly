@@ -130,4 +130,18 @@ describe('buildPdf — content parity with the CSV rows (docs/07 §5)', () => {
     const text = bufferText(buf);
     expect(text).toContain('Ayse Yilmaz');
   });
+
+  it('a full Atlassian account id is never truncated (owner-reported, 2026-07-22: ACCOUNT ID column was too narrow)', () => {
+    const accountId = '712020:1fff4957-4035-4b1a-a497-53928539ba88';
+    const buf = buildPdf(header, [row({ userAccountId: accountId })]);
+    const text = bufferText(buf);
+    expect(text).toContain(accountId);
+  });
+
+  it('the "(unresolved)" space-key placeholder is never truncated (owner-reported, 2026-07-22: SPACE column was too narrow)', () => {
+    const buf = buildPdf(header, [row({ spaceKey: '(unresolved)' })]);
+    const text = bufferText(buf);
+    // Parentheses are PDF string-literal special characters (escapePdfString) -- the full, unescaped placeholder is "(unresolved)".
+    expect(text).toContain('\\(unresolved\\)');
+  });
 });

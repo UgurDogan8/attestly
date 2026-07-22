@@ -41,7 +41,24 @@ export interface PdfReportHeader {
 const PAGE_WIDTH = 792; // US Letter, landscape
 const PAGE_HEIGHT = 612;
 const MARGIN = 36;
-const FONT_SIZE = 7;
+/**
+ * Column widths tuned 2026-07-22 (owner-reported: SPACE and ACCOUNT ID were
+ * both truncating in a way that lost real information — a real Atlassian
+ * account ID like `712020:1fff4957-4035-4b1a-a497-53928539ba88` is ~43
+ * characters and was cut to 14, and the `(unresolved)` space-key placeholder
+ * (12 characters, auth.ts's resolveSpaceKey fallback) was cut to 8,
+ * unrecognizable as itself). Every column below is now sized to its actual
+ * worst-case content instead of a guess. Courier is fixed-width at 0.6em per
+ * character (PDF's built-in metric for this font), so the total character
+ * budget for one line is `(PAGE_WIDTH - 2*MARGIN) / (FONT_SIZE * 0.6)`; at
+ * the widths below that's 183 characters (176 of columns + 9 single-space
+ * separators for 10 columns) against a budget of ~193 at FONT_SIZE 6.2 —
+ * 10 characters of headroom for account ID formats slightly longer than the
+ * example above. FONT_SIZE only had to drop from 7pt to 6.2pt (not the page
+ * size) to fit this — still legible print, and keeps the page a standard,
+ * universally-printable US Letter rather than requiring Legal-size paper.
+ */
+const FONT_SIZE = 6.2;
 const HEADER_FONT_SIZE = 9;
 const LINE_HEIGHT = 10;
 
@@ -53,12 +70,14 @@ interface Column {
 
 /** Column order mirrors CSV_HEADER (domain/export.ts) minus exported_at_utc/app_version (moved to the report header). */
 const COLUMNS: Column[] = [
-  { header: 'PAGE TITLE', width: 22, get: (r) => r.pageTitle },
+  { header: 'PAGE TITLE', width: 26, get: (r) => r.pageTitle },
   { header: 'PAGE ID', width: 12, get: (r) => r.pageId },
-  { header: 'SPACE', width: 8, get: (r) => r.spaceKey },
+  // Wide enough for the "(unresolved)" placeholder (12 chars) -- real space keys are always shorter.
+  { header: 'SPACE', width: 14, get: (r) => r.spaceKey },
   { header: 'VER', width: 4, get: (r) => (r.pageVersionConfirmed === null ? '' : String(r.pageVersionConfirmed)) },
-  { header: 'USER', width: 18, get: (r) => r.userDisplayName },
-  { header: 'ACCOUNT ID', width: 14, get: (r) => r.userAccountId },
+  { header: 'USER', width: 20, get: (r) => r.userDisplayName },
+  // Wide enough for a full Atlassian account id (e.g. "712020:1fff4957-4035-4b1a-a497-53928539ba88", ~43 chars) plus headroom.
+  { header: 'ACCOUNT ID', width: 46, get: (r) => r.userAccountId },
   { header: 'TYPE', width: 10, get: (r) => r.assignmentType },
   { header: 'STATUS', width: 12, get: (r) => r.status },
   // Data model §4: exported timestamps are YYYY-MM-DDTHH:mm:ssZ (no
