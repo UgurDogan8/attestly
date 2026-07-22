@@ -36,6 +36,7 @@ import {
   isComplianceManager,
   canConfigure,
   searchGroupsByQuery,
+  searchPagesByTitle,
   resolveGroupNames,
   checkViewPermission,
   getGroupMemberAccountIds,
@@ -210,13 +211,13 @@ describe('isConfluenceAdmin (T13 — resolves T9\'s disclosed admin-check deferr
   });
 });
 
-describe('isComplianceManager (data model §2.3 — admin OR compliance-managers group, T13)', () => {
-  it('false when neither admin nor a managers group membership holds', async () => {
+describe('isComplianceManager (data model §2.3 — admin OR compliance-managers group/user, T13)', () => {
+  it('false when neither admin nor a managers group/user membership holds', async () => {
     fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
     expect(await isComplianceManager('acc-1')).toBe(false);
   });
 
-  it('true when the user is a Confluence admin, even with no managers group configured at all', async () => {
+  it('true when the user is a Confluence admin, even with no managers configured at all', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
       throw new Error('should not need the managers group membership call when already admin');
@@ -224,8 +225,8 @@ describe('isComplianceManager (data model §2.3 — admin OR compliance-managers
     expect(await isComplianceManager('acc-1')).toBe(true);
   });
 
-  it('true when the user is a member of the configured managers group (not an admin)', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
+  it('true when the user is a member of one of the configured managers groups (not an admin)', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['other-group', 'managers-group'], complianceManagersUserIds: [], reconfirmDefault: false });
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return jsonResponse(200, { operations: [] });
       return jsonResponse(200, { results: [{ id: 'managers-group' }] });
@@ -233,8 +234,14 @@ describe('isComplianceManager (data model §2.3 — admin OR compliance-managers
     expect(await isComplianceManager('acc-1')).toBe(true);
   });
 
-  it('false when the user is neither an admin nor a member of the configured managers group', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
+  it('true when the user is directly listed as a compliance manager (no group, not an admin)', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: [], complianceManagersUserIds: ['acc-1'], reconfirmDefault: false });
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
+    expect(await isComplianceManager('acc-1')).toBe(true);
+  });
+
+  it('false when the user is neither an admin, nor a member of any configured managers group, nor directly listed', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers-group'], complianceManagersUserIds: ['someone-else'], reconfirmDefault: false });
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return jsonResponse(200, { operations: [] });
       return jsonResponse(200, { results: [{ id: 'other-group' }] });
@@ -253,7 +260,7 @@ describe('canConfigure (tech design §4 — page edit permission OR compliance m
   });
 
   it('true when the user is a compliance manager (no edit permission)', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers-group', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers-group'], complianceManagersUserIds: [], reconfirmDefault: false });
     fakeApi.setHandler((url) => {
       if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: false });
       return jsonResponse(200, { results: [{ id: 'managers-group' }] });
@@ -295,6 +302,36 @@ describe('searchGroupsByQuery (T7 — verified against Confluence Cloud REST API
   it('returns an empty array when the API omits results', async () => {
     fakeApi.setHandler(() => jsonResponse(200, {}));
     expect(await searchGroupsByQuery('sec')).toEqual([]);
+  });
+});
+
+describe('searchPagesByTitle (dashboard "track a page" search, 2026-07-22)', () => {
+  it('maps v2 pages results to {id, title} and passes the title query through', async () => {
+    fakeApi.setHandler((url) => {
+      expect(url).toBe('/wiki/api/v2/pages?title=Security&limit=10');
+      return jsonResponse(200, { results: [{ id: 'page-42', title: 'Security Policy' }, { id: 'page-43', title: 'Security Handbook' }] });
+    });
+    expect(await searchPagesByTitle('Security')).toEqual([
+      { id: 'page-42', title: 'Security Policy' },
+      { id: 'page-43', title: 'Security Handbook' },
+    ]);
+  });
+
+  it('returns an empty array without a request for a blank query', async () => {
+    fakeApi.setHandler(() => {
+      throw new Error('should not be called');
+    });
+    expect(await searchPagesByTitle('  ')).toEqual([]);
+  });
+
+  it('returns an empty array on a non-200 response rather than throwing', async () => {
+    fakeApi.setHandler(() => jsonResponse(500, {}));
+    expect(await searchPagesByTitle('Security')).toEqual([]);
+  });
+
+  it('returns an empty array when the API omits results', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, {}));
+    expect(await searchPagesByTitle('Security')).toEqual([]);
   });
 });
 

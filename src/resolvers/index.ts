@@ -13,6 +13,8 @@ import {
   type ConfigResponse,
   type SearchGroupsPayload,
   type GroupOption,
+  type SearchPagesPayload,
+  type PageOption,
   type GetDashboardPayload,
   type GetDashboardResponse,
   type GetPageDetailPayload,
@@ -35,7 +37,9 @@ import {
   isMemberOfAnyGroup,
   canConfigure,
   isConfluenceAdmin,
+  isComplianceManager,
   searchGroupsByQuery,
+  searchPagesByTitle,
   resolveGroupNames,
   getCurrentUserGroupIds,
   type GroupMembershipLookup,
@@ -320,6 +324,16 @@ export function registerResolvers(resolver: Resolver): void {
   resolver.define<GetDashboardPayload, Result<GetDashboardResponse>>(
     'getDashboard',
     withErrorHandling((payload, accountId) => getDashboardRows(payload, accountId)),
+  );
+
+  resolver.define<SearchPagesPayload, Result<PageOption[]>>(
+    'searchPages',
+    withErrorHandling(async ({ query }, accountId) => {
+      if (!(await isComplianceManager(accountId))) {
+        return err('FORBIDDEN', 'You need compliance-manager access to search pages.');
+      }
+      return ok(await searchPagesByTitle(query));
+    }),
   );
 
   resolver.define<GetPageDetailPayload, Result<GetPageDetailResponse>>(

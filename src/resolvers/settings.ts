@@ -8,14 +8,6 @@ import { ok, err, type Result, type GetSettingsResponse, type SaveSettingsPayloa
  * docstring for why compliance-manager membership doesn't suffice here.
  */
 
-async function resolveGroupName(groupId: string | null): Promise<string | null> {
-  if (!groupId) {
-    return null;
-  }
-  const [group] = await resolveGroupNames([groupId]);
-  return group?.name ?? null;
-}
-
 export async function getSettingsForAdmin(): Promise<Result<GetSettingsResponse>> {
   if (!(await isConfluenceAdmin())) {
     return err('FORBIDDEN', 'You need Confluence admin access to view settings.');
@@ -23,8 +15,9 @@ export async function getSettingsForAdmin(): Promise<Result<GetSettingsResponse>
 
   const settings = await getSettings();
   return ok({
-    complianceManagersGroupId: settings.complianceManagersGroupId,
-    complianceManagersGroupName: await resolveGroupName(settings.complianceManagersGroupId),
+    complianceManagersGroupIds: settings.complianceManagersGroupIds,
+    complianceManagersGroupOptions: await resolveGroupNames(settings.complianceManagersGroupIds),
+    complianceManagersUserIds: settings.complianceManagersUserIds,
     reconfirmDefault: settings.reconfirmDefault,
   });
 }
@@ -36,14 +29,16 @@ export async function saveSettingsForAdmin(payload: SaveSettingsPayload): Promis
 
   const updated: SettingsRecord = {
     schemaVersion: 1,
-    complianceManagersGroupId: payload.complianceManagersGroupId,
+    complianceManagersGroupIds: payload.complianceManagersGroupIds,
+    complianceManagersUserIds: payload.complianceManagersUserIds,
     reconfirmDefault: payload.reconfirmDefault,
   };
   await saveSettings(updated);
 
   return ok({
-    complianceManagersGroupId: updated.complianceManagersGroupId,
-    complianceManagersGroupName: await resolveGroupName(updated.complianceManagersGroupId),
+    complianceManagersGroupIds: updated.complianceManagersGroupIds,
+    complianceManagersGroupOptions: await resolveGroupNames(updated.complianceManagersGroupIds),
+    complianceManagersUserIds: updated.complianceManagersUserIds,
     reconfirmDefault: updated.reconfirmDefault,
   });
 }

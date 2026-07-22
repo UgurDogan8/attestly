@@ -71,8 +71,9 @@ export const tr: Record<MessageKey, string> = {
   'dashboard.deletedPage': '[silinmiş sayfa {id}]',
   'dashboard.empty.header': 'Okuma onaylarını takip etmeye başlayın',
   'dashboard.empty.description':
-    'Kimlerin okuduğunu takip etmek için herhangi bir sayfaya Okuma Onayı makrosunu ekleyin.',
+    'Kimin okuması gerektiğini takip etmeye başlamak için yukarıdan bir sayfa arayın — makro gerekmez. Dilerseniz Okuma Onayı makrosunu doğrudan bir sayfaya da ekleyebilirsiniz.',
   'dashboard.empty.action': 'Dokümantasyonu aç',
+  'dashboard.trackPage.placeholder': 'Başlığa göre bir sayfa takibe al…',
   'dashboard.noAccess.header': 'Uyum yöneticisi erişimi gerekiyor',
   'dashboard.noAccess.description':
     'Bir Confluence yöneticisinden sizi uygulama ayarlarındaki uyum yöneticileri grubuna eklemesini isteyin.',
@@ -100,6 +101,7 @@ export const tr: Record<MessageKey, string> = {
   'export.navError': 'Dışa aktarma sayfası açılamadı. Lütfen tekrar deneyin.',
 
   'detail.back': 'Kontrol paneline dön',
+  'detail.configure': 'Yapılandır',
   'detail.stat.assigned': 'Atanan',
   'detail.summary': '{assigned} atanandan {confirmed} onayladı · {outstanding} bekliyor · {cannotView} görüntüleyemiyor',
   'detail.tab.outstanding': 'Bekleyenler',
@@ -128,12 +130,13 @@ export const tr: Record<MessageKey, string> = {
 
   'settings.title': 'Attestly — ayarlar',
   'settings.subtitle': 'Okuma onayı uygulaması için site geneli varsayılanlar, erişim ve veri dışa aktarımı.',
-  'settings.managers': 'Uyum yöneticileri grubu',
+  'settings.managers': 'Uyum yöneticileri',
+  'settings.managers.users': 'Kullanıcılar',
+  'settings.managers.users.placeholder': 'Tek tek kullanıcı ekleyin…',
+  'settings.managers.groups': 'Gruplar',
+  'settings.managers.groups.placeholder': 'Grup ekleyin…',
   'settings.managers.hint':
-    'Bu grubun üyeleri, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',
-  'settings.managers.placeholder': 'Bir grup seçin…',
-  'settings.defaults': 'Yeni yapılandırmalar için varsayılanlar',
-  'settings.defaults.reconfirm': 'Sayfalar değiştiğinde yeniden onay iste',
+    'Bu kullanıcılar ve bu gruplardaki üyeler, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',
   'settings.exportAll': 'Tüm veriyi dışa aktar',
   'settings.exportAll.hint': 'Bu sitedeki tüm onay kayıtlarını içeren tek bir CSV.',
   'settings.lifecycle.title': 'Veri yaşam döngüsü',

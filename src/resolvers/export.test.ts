@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 async function asManager(): Promise<void> {
-  await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+  await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
 }
 
 /** Manager check + bulk page visibility + "everyone can view, every name is X" -- enough to make an assigned user's row actually appear. */

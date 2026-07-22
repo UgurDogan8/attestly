@@ -43,6 +43,8 @@ import type {
   ConfigResponse,
   SearchGroupsPayload,
   GroupOption,
+  SearchPagesPayload,
+  PageOption,
 } from '../shared';
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
@@ -143,7 +145,7 @@ describe('getPageStatus', () => {
   });
 
   it('fetches the caller\'s group memberships at most once even when both canConfigure and isAssigned need them (efficiency fix)', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'compliance-team', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['compliance-team'], complianceManagersUserIds: [], reconfirmDefault: false });
     await savePageConfig(aPageConfig({ pageId: 'page-1', assignedUsers: [], assignedGroups: ['sec-all'] }));
 
     let memberOfCalls = 0;
@@ -480,6 +482,42 @@ describe('searchGroups (T7 config modal group field)', () => {
   });
 });
 
+describe('searchPages (dashboard "track a page" search, 2026-07-22)', () => {
+  it('is forbidden for a caller who is neither a Confluence admin nor a compliance manager', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { operations: [], results: [] }));
+    const payload: SearchPagesPayload = { query: 'Security' };
+    const result = await invoke<SearchPagesPayload, PageOption[]>('searchPages', payload);
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('returns matching pages for an authorized compliance manager', async () => {
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers-group'], complianceManagersUserIds: [], reconfirmDefault: false });
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers-group' }] });
+      if (url.includes('/api/v2/pages')) {
+        expect(url).toContain('title=Security');
+        return jsonResponse(200, { results: [{ id: 'page-42', title: 'Security Policy' }] });
+      }
+      return jsonResponse(200, { operations: [] });
+    });
+
+    const payload: SearchPagesPayload = { query: 'Security' };
+    const result = await invoke<SearchPagesPayload, PageOption[]>('searchPages', payload);
+    expect(result).toEqual({ ok: true, data: [{ id: 'page-42', title: 'Security Policy' }] });
+  });
+
+  it('a genuine Confluence admin is authorized even with no compliance-managers group configured', async () => {
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
+      if (url.includes('/api/v2/pages')) return jsonResponse(200, { results: [] });
+      return jsonResponse(404, {});
+    });
+    const payload: SearchPagesPayload = { query: 'Security' };
+    const result = await invoke<SearchPagesPayload, PageOption[]>('searchPages', payload);
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+});
+
 describe('getSettings / saveSettings (T13 — admin-only, data model §2.3)', () => {
   it('getSettings is forbidden for a non-admin', async () => {
     fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
@@ -492,33 +530,43 @@ describe('getSettings / saveSettings (T13 — admin-only, data model §2.3)', ()
     const result = await invoke('getSettings', {});
     expect(result).toEqual({
       ok: true,
-      data: { complianceManagersGroupId: null, complianceManagersGroupName: null, reconfirmDefault: false },
+      data: { complianceManagersGroupIds: [], complianceManagersGroupOptions: [], complianceManagersUserIds: [], reconfirmDefault: false },
     });
   });
 
   it('saveSettings is forbidden for a non-admin', async () => {
     fakeApi.setHandler(() => jsonResponse(200, { operations: [] }));
-    const result = await invoke('saveSettings', { complianceManagersGroupId: 'g1', reconfirmDefault: false });
+    const result = await invoke('saveSettings', { complianceManagersGroupIds: ['g1'], complianceManagersUserIds: [], reconfirmDefault: false });
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 
-  it('an admin can save settings, and a subsequent getSettings reflects them (with the group name resolved)', async () => {
+  it('an admin can save settings, and a subsequent getSettings reflects them (with group names resolved)', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return jsonResponse(200, { operations: [{ operation: 'administer', targetType: 'application' }] });
       if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'g1', name: 'compliance-team' });
       return jsonResponse(404, {});
     });
 
-    const saveResult = await invoke('saveSettings', { complianceManagersGroupId: 'g1', reconfirmDefault: true });
+    const saveResult = await invoke('saveSettings', { complianceManagersGroupIds: ['g1'], complianceManagersUserIds: ['acc-1'], reconfirmDefault: true });
     expect(saveResult).toEqual({
       ok: true,
-      data: { complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team', reconfirmDefault: true },
+      data: {
+        complianceManagersGroupIds: ['g1'],
+        complianceManagersGroupOptions: [{ id: 'g1', name: 'compliance-team' }],
+        complianceManagersUserIds: ['acc-1'],
+        reconfirmDefault: true,
+      },
     });
 
     const getResult = await invoke('getSettings', {});
     expect(getResult).toEqual({
       ok: true,
-      data: { complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team', reconfirmDefault: true },
+      data: {
+        complianceManagersGroupIds: ['g1'],
+        complianceManagersGroupOptions: [{ id: 'g1', name: 'compliance-team' }],
+        complianceManagersUserIds: ['acc-1'],
+        reconfirmDefault: true,
+      },
     });
   });
 });

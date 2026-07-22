@@ -89,11 +89,32 @@ describe('writeConfirmation (tech design §6.1 — idempotent, append-only)', ()
     expect(updated?.counters.confirmedCurrentVersion).toBe(4);
   });
 
-  it('does not bump or crash when no page-config exists (voluntary confirmation on an untracked page)', async () => {
+  it('auto-tracks a never-configured page on its first confirmation (bug fix, 2026-07-22): creates an active, voluntary page-config with the counter bumped to 1', async () => {
     await expect(
-      writeConfirmation(aConfirmation({ pageId: 'untracked-page', accountId: 'acc-1', pageVersion: 1 })),
+      writeConfirmation(aConfirmation({ pageId: 'untracked-page', spaceKey: 'SEC', accountId: 'acc-1', pageVersion: 1, confirmedAt: '2026-07-22T10:00:00.000Z' })),
     ).resolves.toMatchObject({ created: true });
-    expect(await getPageConfig('untracked-page')).toBeUndefined();
+
+    const config = await getPageConfig('untracked-page');
+    expect(config).toMatchObject({
+      pageId: 'untracked-page',
+      spaceKey: 'SEC',
+      active: true,
+      assignedUsers: [],
+      assignedGroups: [],
+      dueDate: null,
+      counters: { confirmedCurrentVersion: 1 },
+    });
+  });
+
+  it('does not re-track (or double-bump) an already-tracked page on a second confirmation from a different user', async () => {
+    await writeConfirmation(aConfirmation({ pageId: 'page-1', accountId: 'acc-1', pageVersion: 1 }));
+    const afterFirst = await getPageConfig('page-1');
+
+    await writeConfirmation(aConfirmation({ pageId: 'page-1', accountId: 'acc-2', pageVersion: 1 }));
+    const afterSecond = await getPageConfig('page-1');
+
+    expect(afterSecond?.counters.confirmedCurrentVersion).toBe((afterFirst?.counters.confirmedCurrentVersion ?? 0) + 1);
+    expect(afterSecond?.createdAt).toBe(afterFirst?.createdAt);
   });
 
   it('does not bump the counter again on a repeat (idempotent) confirm', async () => {

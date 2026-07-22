@@ -26,7 +26,16 @@ import { useLatestOnly } from './useLatestOnly';
 import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
-import { isUnresolvedSpaceKey, type GetDashboardPayload, type GetDashboardResponse, type DashboardRow, type StatusFilter } from '../../shared';
+import { ConfigModal } from './ConfigModal';
+import {
+  isUnresolvedSpaceKey,
+  type GetDashboardPayload,
+  type GetDashboardResponse,
+  type DashboardRow,
+  type StatusFilter,
+  type SearchPagesPayload,
+  type PageOption,
+} from '../../shared';
 
 /**
  * The dashboard global page (docs/06 T9, UX doc §3.2). List-only for this
@@ -40,9 +49,22 @@ import { isUnresolvedSpaceKey, type GetDashboardPayload, type GetDashboardRespon
  *
  * See src/resolvers/dashboard.ts's docstring for the visibility rule,
  * advisory-counter, and role-gate reasoning behind what this renders.
+ *
+ * "Track a page" search (2026-07-22, owner-reported gap): starting to track
+ * a page used to require adding the macro to it and opening its Configure
+ * modal from inside the page — there was no way to do it from here at all.
+ * The toolbar's page search (searchPages, exact-title match — see auth.ts's
+ * searchPagesByTitle) opens the same ConfigModal used elsewhere for any page
+ * the manager can see, tracked or not: saving with even an empty assignment
+ * creates an active page-config (voluntary), which is exactly what makes a
+ * page show up here and in exports. `pageSearchKey` forces the Select to
+ * remount after each pick — this is a one-shot "search, pick, act" control,
+ * not a persisted filter, so it must reset to empty every time, and UI Kit's
+ * Select has no documented imperative "clear" API to call instead.
  */
 
 const STATUS_FILTER_DEBOUNCE_MS = 400;
+const PAGE_SEARCH_DEBOUNCE_MS = 300;
 
 const toolbarStyles = xcss({ borderRadius: 'radius.medium' });
 const filterIconStyles = xcss({ paddingInlineStart: 'space.050' });
@@ -50,6 +72,11 @@ const filterIconStyles = xcss({ paddingInlineStart: 'space.050' });
 interface StatusOption {
   label: string;
   value: StatusFilter;
+}
+
+interface PageSelectOption {
+  label: string;
+  value: string;
 }
 
 export interface DashboardProps {
@@ -60,6 +87,7 @@ export interface DashboardProps {
 export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Element {
   const { t, locale } = useI18n();
   const dashboardInvoke = useInvoke<GetDashboardPayload, GetDashboardResponse>('getDashboard');
+  const pageSearchInvoke = useInvoke<SearchPagesPayload, PageOption[]>('searchPages');
   const { runLatest } = useLatestOnly();
 
   const [rows, setRows] = useState<DashboardRow[]>([]);
@@ -71,9 +99,44 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [exportNavError, setExportNavError] = useState(false);
 
+  const [pageSearchOptions, setPageSearchOptions] = useState<PageSelectOption[]>([]);
+  const [pageSearchKey, setPageSearchKey] = useState(0);
+  const [configPageId, setConfigPageId] = useState<string | null>(null);
+  const { runLatest: runLatestPageSearch } = useLatestOnly();
+
   async function handleExportClick(): Promise<void> {
     const opened = await openExportPage({ spaceKey: spaceKeyInput || undefined });
     setExportNavError(!opened);
+  }
+
+  const pageSearch = useDebouncedCallback(async (query: string) => {
+    const result = await runLatestPageSearch(() => pageSearchInvoke.run({ query }));
+    if (result?.ok) {
+      setPageSearchOptions(result.data.map((p) => ({ label: p.title, value: p.id })));
+    }
+  }, PAGE_SEARCH_DEBOUNCE_MS);
+
+  function handlePageSearchInputChange(query: string): void {
+    if (!query) {
+      pageSearch.cancel();
+      setPageSearchOptions([]);
+      return;
+    }
+    pageSearch.run(query);
+  }
+
+  function handlePageSelected(option: unknown): void {
+    const picked = option as PageSelectOption | null;
+    setPageSearchOptions([]);
+    setPageSearchKey((k) => k + 1); // remount to clear the Select's own input state
+    if (picked) {
+      setConfigPageId(picked.value);
+    }
+  }
+
+  function handleConfigSaved(): void {
+    setConfigPageId(null);
+    void runFilteredFetch({ spaceKey: spaceKeyInput.trim() || undefined, statusFilter });
   }
 
   /**
@@ -166,8 +229,43 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
   }
 
   const isUnfiltered = statusFilter === 'all' && spaceKeyInput.trim() === '';
-  if (rows.length === 0 && cursor === null && isUnfiltered) {
-    return <EmptyState header={t('dashboard.empty.header')} description={t('dashboard.empty.description')} />;
+  const isFullyEmpty = rows.length === 0 && cursor === null && isUnfiltered;
+
+  // Rendered both when nothing is tracked yet (fully-empty branch below) and
+  // in the normal list view -- searching and picking a page here is the only
+  // way to start tracking one without adding the macro to it first.
+  const pageTracker = (
+    <Box backgroundColor="color.background.neutral.subtle" padding="space.150" xcss={toolbarStyles}>
+      <Inline space="space.100" alignBlock="center">
+        <Box xcss={filterIconStyles}>
+          <Icon glyph="add" label="" color="color.icon.subtle" size="small" />
+        </Box>
+        <Select
+          key={pageSearchKey}
+          inputId="trackPageSearch"
+          isLoading={pageSearchInvoke.loading}
+          options={pageSearchOptions}
+          onInputChange={handlePageSearchInputChange}
+          onChange={handlePageSelected}
+          placeholder={t('dashboard.trackPage.placeholder')}
+        />
+      </Inline>
+    </Box>
+  );
+
+  const configModal = configPageId ? (
+    <ConfigModal pageId={configPageId} onClose={() => setConfigPageId(null)} onSaved={handleConfigSaved} />
+  ) : null;
+
+  if (isFullyEmpty) {
+    return (
+      <Stack space="space.200">
+        <SurfaceHeader icon="shield" title={t('dashboard.title')} subtitle={t('dashboard.subtitle')} />
+        {pageTracker}
+        <EmptyState header={t('dashboard.empty.header')} description={t('dashboard.empty.description')} />
+        {configModal}
+      </Stack>
+    );
   }
 
   const head = {
@@ -257,6 +355,8 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
         </SectionMessage>
       ) : null}
 
+      {pageTracker}
+
       <Box backgroundColor="color.background.neutral.subtle" padding="space.150" xcss={toolbarStyles}>
         <Inline space="space.200" alignBlock="center">
           <Box xcss={filterIconStyles}>
@@ -296,6 +396,8 @@ export function Dashboard({ onOpenPage }: DashboardProps = {}): React.JSX.Elemen
           </LoadingButton>
         </Box>
       ) : null}
+
+      {configModal}
     </Stack>
   );
 }

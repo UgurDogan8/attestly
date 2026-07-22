@@ -50,60 +50,71 @@ describe('getSettingsForAdmin', () => {
     const result = await getSettingsForAdmin();
     expect(result).toEqual({
       ok: true,
-      data: { complianceManagersGroupId: null, complianceManagersGroupName: null, reconfirmDefault: false },
+      data: { complianceManagersGroupIds: [], complianceManagersGroupOptions: [], complianceManagersUserIds: [], reconfirmDefault: false },
     });
   });
 
-  it('resolves the configured group name for display', async () => {
+  it('resolves the configured groups’ names for display', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return asAdmin();
-      if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'g1', name: 'compliance-team' });
+      if (url.includes('id=g1')) return jsonResponse(200, { id: 'g1', name: 'compliance-team' });
+      if (url.includes('id=g2')) return jsonResponse(200, { id: 'g2', name: 'security-team' });
       return jsonResponse(404, {});
     });
-    await saveSettingsForAdmin({ complianceManagersGroupId: 'g1', reconfirmDefault: false });
+    await saveSettingsForAdmin({ complianceManagersGroupIds: ['g1', 'g2'], complianceManagersUserIds: ['acc-1'], reconfirmDefault: false });
 
     const result = await getSettingsForAdmin();
-    expect(result).toMatchObject({ ok: true, data: { complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team' } });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        complianceManagersGroupIds: ['g1', 'g2'],
+        complianceManagersGroupOptions: expect.arrayContaining([
+          { id: 'g1', name: 'compliance-team' },
+          { id: 'g2', name: 'security-team' },
+        ]),
+        complianceManagersUserIds: ['acc-1'],
+      },
+    });
   });
 
-  it('a deleted/unresolvable group falls back to a null name, ID stays authoritative', async () => {
+  it('a deleted/unresolvable group is dropped from the resolved options, ID stays authoritative', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return asAdmin();
       return jsonResponse(404, {}); // group/by-id fails to resolve
     });
-    await saveSettingsForAdmin({ complianceManagersGroupId: 'gone', reconfirmDefault: false });
+    await saveSettingsForAdmin({ complianceManagersGroupIds: ['gone'], complianceManagersUserIds: [], reconfirmDefault: false });
 
     const result = await getSettingsForAdmin();
-    expect(result).toMatchObject({ ok: true, data: { complianceManagersGroupId: 'gone', complianceManagersGroupName: null } });
+    expect(result).toMatchObject({ ok: true, data: { complianceManagersGroupIds: ['gone'], complianceManagersGroupOptions: [] } });
   });
 });
 
 describe('saveSettingsForAdmin', () => {
   it('FORBIDDEN for a non-admin, and nothing is persisted', async () => {
     fakeApi.setHandler(asNonAdmin);
-    const result = await saveSettingsForAdmin({ complianceManagersGroupId: 'g1', reconfirmDefault: true });
+    const result = await saveSettingsForAdmin({ complianceManagersGroupIds: ['g1'], complianceManagersUserIds: [], reconfirmDefault: true });
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
-    expect(await getSettings()).toMatchObject({ complianceManagersGroupId: null });
+    expect(await getSettings()).toMatchObject({ complianceManagersGroupIds: [] });
   });
 
-  it('an admin can clear the managers group by saving null', async () => {
+  it('an admin can clear all managers by saving empty arrays', async () => {
     fakeApi.setHandler((url) => {
       if (url.includes('/user/current')) return asAdmin();
       if (url.includes('/group/by-id')) return jsonResponse(200, { id: 'g1', name: 'compliance-team' });
       return jsonResponse(404, {});
     });
-    await saveSettingsForAdmin({ complianceManagersGroupId: 'g1', reconfirmDefault: false });
+    await saveSettingsForAdmin({ complianceManagersGroupIds: ['g1'], complianceManagersUserIds: [], reconfirmDefault: false });
 
-    const result = await saveSettingsForAdmin({ complianceManagersGroupId: null, reconfirmDefault: false });
+    const result = await saveSettingsForAdmin({ complianceManagersGroupIds: [], complianceManagersUserIds: [], reconfirmDefault: false });
     expect(result).toEqual({
       ok: true,
-      data: { complianceManagersGroupId: null, complianceManagersGroupName: null, reconfirmDefault: false },
+      data: { complianceManagersGroupIds: [], complianceManagersGroupOptions: [], complianceManagersUserIds: [], reconfirmDefault: false },
     });
   });
 
   it('persists reconfirmDefault', async () => {
     fakeApi.setHandler(asAdmin);
-    await saveSettingsForAdmin({ complianceManagersGroupId: null, reconfirmDefault: true });
+    await saveSettingsForAdmin({ complianceManagersGroupIds: [], complianceManagersUserIds: [], reconfirmDefault: true });
     expect(await getSettings()).toMatchObject({ reconfirmDefault: true });
   });
 });

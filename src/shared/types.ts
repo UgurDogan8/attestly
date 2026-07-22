@@ -135,6 +135,22 @@ export interface GroupOption {
 }
 
 /**
+ * searchPages (T9 dashboard "track a page" search, 2026-07-22). Gated on
+ * isComplianceManager — same access level as the dashboard itself, since
+ * choosing which pages to track is a manager action, not tied to any one
+ * page's edit permission the way ConfigModal's per-page `searchGroups` call
+ * is. See resolvers/auth.ts's searchPagesByTitle for the exact-match caveat.
+ */
+export interface SearchPagesPayload {
+  query: string;
+}
+
+export interface PageOption {
+  id: string;
+  title: string;
+}
+
+/**
  * getDashboard (T9 dashboard global page — tech design §4/§5/§9). Role
  * gate: compliance-managers group only in v1 (§7 Riskler-style disclosed
  * scope tradeoff — see src/resolvers/dashboard.ts's docstring: "OR
@@ -310,20 +326,23 @@ export type ExportFileResponse =
  * getSettings / saveSettings (T13, docs/04 §3.5, data model §2.3). Gated on
  * isConfluenceAdmin alone (resolvers/auth.ts) — deliberately NOT
  * compliance-manager-accessible, since this page is where the
- * compliance-managers group itself gets configured (auth.ts's
+ * compliance-managers group(s)/user(s) themselves get configured (auth.ts's
  * isComplianceManager docstring explains the bootstrap reasoning).
  */
 export type GetSettingsPayload = Record<string, never>;
 
 export interface GetSettingsResponse {
-  complianceManagersGroupId: string | null;
-  /** Resolved for display the same way T7's config modal resolves assigned
-   * group names — best-effort, null if the group no longer exists. */
-  complianceManagersGroupName: string | null;
+  complianceManagersGroupIds: string[];
+  /** `complianceManagersGroupIds` with names resolved (same best-effort
+   * pattern as T7's config modal's `assignedGroupOptions`) — a group missing
+   * here (deleted since) still stays authoritative in the ID list. */
+  complianceManagersGroupOptions: GroupOption[];
+  complianceManagersUserIds: string[];
   reconfirmDefault: boolean;
 }
 
 export interface SaveSettingsPayload {
-  complianceManagersGroupId: string | null;
+  complianceManagersGroupIds: string[];
+  complianceManagersUserIds: string[];
   reconfirmDefault: boolean;
 }

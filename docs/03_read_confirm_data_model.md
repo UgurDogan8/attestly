@@ -97,13 +97,17 @@ Key: `config#{pageId}`
 
 Index: `tracked` — partition `active`, range `spaceKey` (validated on Forge, spike M0-1). One index serves both dashboard shapes: site-wide list = partition `[true]`; space filter = `where equalTo(spaceKey)` on the range. Booleans are legal partition attributes.
 
+> **Auto-tracking (bug fix, 2026-07-22):** the dashboard and every export scope discover pages exclusively through this `tracked` index, never by scanning `confirmation` records directly (tech design §5's "never fan out" rule) — so a page confirmed only voluntarily, with nobody ever having opened "Configure" and saved, previously had no `page-config` row at all and was permanently invisible to both, despite its confirmation records being real and permanent. `storage/confirmations.ts`'s `writeConfirmation` now creates one automatically (`active: true`, empty assignment — voluntary) on a page's first confirmation if none exists yet, same as if a manager had saved an empty assignment. No `config-audit` entry is written for this (nothing about assignment changed).
+
+> **Starting to track a page without the macro (2026-07-22):** the dashboard's page search (`searchPages`, `resolvers/auth.ts`'s `searchPagesByTitle`) and `PageDetail`'s "Configure" button (docs/07 §4.3/§4.4) both create/edit this record the same way `saveConfig` always has — there is no separate code path or schema for a "dashboard-tracked" vs. "macro-tracked" page, only how the first `page-config` write for a given `pageId` came about.
+
 > **Entity naming (platform constraint, spike M0-1):** entity names must match `^[a-z0-9:\-_.]*` — camelCase is rejected by `forge lint`. Manifest names are therefore `page-config` and `config-audit` (attribute names may stay camelCase); prose in these docs keeps the logical names.
 
 > **Page-move caveat:** `spaceKey` here is written at config time and goes stale if the page moves to another space. Dashboard space filtering resolves the current space at render for rows whose page lookup succeeds; v1.1 refreshes the index on the page-moved event **[SPIKE: verify event id — expected `avi:confluence:moved:page`]**.
 
 ### 2.3 `settings` — global app settings (singleton)
 
-Key: `settings#global` — compliance-manager group ID, default reconfirm behavior, reminder cadence defaults (v1.1).
+Key: `settings#global` — compliance-manager group IDs **and** user IDs (multi, changed 2026-07-22 from a single group ID), default reconfirm behavior, reminder cadence defaults (v1.1).
 
 ### 2.4 `configAudit` — config change log (append-only, v1)
 

@@ -73,8 +73,9 @@ export const en = {
   'dashboard.deletedPage': '[deleted page {id}]',
   'dashboard.empty.header': 'Start tracking read confirmations',
   'dashboard.empty.description':
-    'Add the Read confirmation macro to any page to start tracking who has read it.',
+    'Search for a page above to start tracking who must read it — no macro required. You can still add the Read confirmation macro to a page directly if you prefer.',
   'dashboard.empty.action': 'Open documentation',
+  'dashboard.trackPage.placeholder': 'Track a page by title…',
   'dashboard.noAccess.header': 'You need compliance-manager access',
   'dashboard.noAccess.description':
     'Ask a Confluence admin to add you to the compliance managers group in the app settings.',
@@ -102,6 +103,7 @@ export const en = {
   'export.navError': "Couldn't open the export page. Please try again.",
 
   'detail.back': 'Back to dashboard',
+  'detail.configure': 'Configure',
   'detail.summary': '{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',
   'detail.stat.assigned': 'Assigned',
   'detail.tab.outstanding': 'Outstanding',
@@ -130,12 +132,13 @@ export const en = {
 
   'settings.title': 'Attestly — settings',
   'settings.subtitle': 'Site-wide defaults, access, and data export for the read confirmation app.',
-  'settings.managers': 'Compliance managers group',
+  'settings.managers': 'Compliance managers',
+  'settings.managers.users': 'Users',
+  'settings.managers.users.placeholder': 'Add individual users…',
+  'settings.managers.groups': 'Groups',
+  'settings.managers.groups.placeholder': 'Add groups…',
   'settings.managers.hint':
-    'Members of this group can open the dashboard and export data without being Confluence admins.',
-  'settings.managers.placeholder': 'Select a group…',
-  'settings.defaults': 'Defaults for new configurations',
-  'settings.defaults.reconfirm': 'Require re-confirmation when pages change',
+    'These users, and members of these groups, can open the dashboard and export data without being Confluence admins.',
   'settings.exportAll': 'Export all data',
   'settings.exportAll.hint': 'One CSV with every confirmation record on this site.',
   'settings.lifecycle.title': 'Data lifecycle',

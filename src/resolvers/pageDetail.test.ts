@@ -41,7 +41,7 @@ beforeEach(() => {
 });
 
 async function asManager(): Promise<void> {
-  await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+  await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
 }
 
 /** Default handler: the viewer is a compliance manager, the page is visible at v1, no groups. */

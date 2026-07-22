@@ -193,30 +193,23 @@ export async function isConfluenceAdmin(): Promise<boolean> {
 }
 
 /**
- * data model §2.3: members of `settings.complianceManagersGroupId` reach
- * the dashboard/drill-down/export without being Confluence admins — *and*
- * (T13, resolving T9's disclosed deferral) a genuine Confluence admin
- * always qualifies too, matching T9's own original accept criteria ("admin
- * or compliance-managers group"). Settings itself (getSettings/
- * saveSettings) does NOT use this function — it gates on isConfluenceAdmin
- * alone, deliberately stricter, since compliance-manager membership is
- * *configured* on the settings page and can't be allowed to grant access
- * to itself.
+ * data model §2.3: members of `settings.complianceManagersGroupIds` (any of
+ * them) or `settings.complianceManagersUserIds` (direct) reach the
+ * dashboard/drill-down/export without being Confluence admins — *and* (T13,
+ * resolving T9's disclosed deferral) a genuine Confluence admin always
+ * qualifies too, matching T9's own original accept criteria ("admin or
+ * compliance-managers group"). Settings itself (getSettings/saveSettings)
+ * does NOT use this function — it gates on isConfluenceAdmin alone,
+ * deliberately stricter, since compliance-manager membership is *configured*
+ * on the settings page and can't be allowed to grant access to itself.
  */
 export async function isComplianceManager(accountId: string, memberOfLookup?: GroupMembershipLookup): Promise<boolean> {
   const settings = await getSettings();
-  const [isAdmin, memberOf] = await Promise.all([
+  const [isAdmin, isGroupManager] = await Promise.all([
     isConfluenceAdmin(),
-    settings.complianceManagersGroupId
-      ? memberOfLookup
-        ? memberOfLookup()
-        : getCurrentUserGroupIds(accountId)
-      : Promise.resolve(new Set<string>()),
+    isMemberOfAnyGroup(accountId, settings.complianceManagersGroupIds, memberOfLookup),
   ]);
-  if (isAdmin) {
-    return true;
-  }
-  return settings.complianceManagersGroupId !== null && memberOf.has(settings.complianceManagersGroupId);
+  return isAdmin || isGroupManager || settings.complianceManagersUserIds.includes(accountId);
 }
 
 /** Config write gate (tech design §4 resolver table): page edit permission OR compliance manager. */
@@ -252,6 +245,50 @@ export async function searchGroupsByQuery(query: string): Promise<GroupOption[]>
   }
   const body = (await response.json()) as GroupPickerResponse;
   return (body.results ?? []).map((group) => ({ id: group.id, name: group.name }));
+}
+
+interface PageSearchResult {
+  id: string;
+  title: string;
+}
+
+interface PagesV2SearchResponse {
+  results?: { id: string; title: string }[];
+}
+
+/**
+ * `GET /wiki/api/v2/pages?title=...` — Dashboard's "track a page" search
+ * (2026-07-22, owner-reported gap: starting to track a page required adding
+ * the macro to it first; this lets a compliance manager find and configure
+ * any page they can already see, straight from the dashboard). `asUser()` —
+ * results are therefore already visibility-filtered to what THIS viewer can
+ * see (the same bulk-read visibility guarantee `resolvePageVisibility`
+ * relies on, tech design §4), so this can never surface a page's
+ * existence/title to someone who couldn't otherwise see it. Scoped under the
+ * already-declared `read:page:confluence` — no manifest change needed.
+ *
+ * UNVERIFIED AGAINST A LIVE SITE (this file's standing convention): v2's
+ * `title` filter is documented by Atlassian as an EXACT, case-sensitive
+ * match, not a substring/fuzzy search — there is no v2 endpoint for partial
+ * title search. A true type-ahead search would need the classic CQL search
+ * endpoint (`/wiki/rest/api/search?cql=title~"..."`), which needs a scope
+ * this app doesn't have — adding one is a major version (README's hard
+ * rules), so it was deliberately not reached for here. If this endpoint's
+ * real behavior turns out to differ, this comment and the "type the exact
+ * page title" UI copy (Dashboard.tsx) should be revisited together.
+ */
+export async function searchPagesByTitle(title: string): Promise<PageSearchResult[]> {
+  if (!title.trim()) {
+    return [];
+  }
+  const response = await api.asUser().requestConfluence(route`/wiki/api/v2/pages?title=${title}&limit=10`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    return [];
+  }
+  const body = (await response.json()) as PagesV2SearchResponse;
+  return (body.results ?? []).map((page) => ({ id: page.id, title: page.title }));
 }
 
 export type ViewPermissionOutcome = 'can-view' | 'cannot-view' | 'deleted-user';

@@ -60,6 +60,11 @@ function row(overrides: Partial<DashboardRow> = {}): DashboardRow {
   };
 }
 
+/** Disambiguates the status-filter Select from the page-search Select added 2026-07-22 (both render at once). */
+function statusSelect(renderer: ReactTestRenderer) {
+  return renderer.root.findAllByType(Select).find((s) => s.props.inputId !== 'trackPageSearch')!;
+}
+
 async function mount(props: DashboardProps = {}): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -224,7 +229,7 @@ describe('Dashboard — filters', () => {
 
     bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [row({ pageId: 'page-2', title: 'Only complete' })], nextCursor: null } });
     await act(async () => {
-      renderer.root.findByType(Select).props.onChange({ label: 'Complete', value: 'complete' });
+      statusSelect(renderer).props.onChange({ label: 'Complete', value: 'complete' });
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -239,7 +244,7 @@ describe('Dashboard — filters', () => {
 
     bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [], nextCursor: null } });
     await act(async () => {
-      renderer.root.findByType(Select).props.onChange({ label: 'Overdue', value: 'overdue' });
+      statusSelect(renderer).props.onChange({ label: 'Overdue', value: 'overdue' });
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -267,5 +272,83 @@ describe('Dashboard — filters', () => {
     });
 
     expect(bridge.invoke).toHaveBeenLastCalledWith('getDashboard', expect.objectContaining({ spaceKey: 'SEC' }));
+  });
+});
+
+/** Disambiguates the page-search Select from the status-filter Select added earlier. */
+function pageSearchSelect(renderer: ReactTestRenderer) {
+  return renderer.root.findAllByType(Select).find((s) => s.props.inputId === 'trackPageSearch')!;
+}
+
+describe('Dashboard — track a page (2026-07-22: start tracking without adding the macro first)', () => {
+  it('the page-search box is present even in the fully-empty onboarding state', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: { rows: [], nextCursor: null } });
+    const renderer = await mount();
+    expect(pageSearchSelect(renderer)).toBeDefined();
+  });
+
+  it('searches pages (debounced) as the manager types', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [row()], nextCursor: null } });
+    const renderer = await mount();
+    const callsBefore = bridge.invoke.mock.calls.length;
+
+    await act(async () => {
+      pageSearchSelect(renderer).props.onInputChange('Secur');
+    });
+    expect(bridge.invoke.mock.calls.length).toBe(callsBefore);
+
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: [{ id: 'page-42', title: 'Security Policy' }] });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('searchPages', { query: 'Secur' });
+  });
+
+  it('selecting a search result opens the ConfigModal for that page', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [row()], nextCursor: null } });
+    const renderer = await mount();
+
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: { pageId: 'page-42', assignedUsers: [], assignedGroups: [], assignedGroupOptions: [], dueDate: null, reconfirmOnChange: false },
+    });
+    await act(async () => {
+      pageSearchSelect(renderer).props.onChange({ label: 'Untracked Page', value: 'page-42' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('getConfig', { pageId: 'page-42' });
+  });
+
+  it('saving a newly-tracked page closes the modal and refetches the dashboard list', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [], nextCursor: null } });
+    const renderer = await mount();
+
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: { pageId: 'page-42', assignedUsers: [], assignedGroups: [], assignedGroupOptions: [], dueDate: null, reconfirmOnChange: false },
+    });
+    await act(async () => {
+      pageSearchSelect(renderer).props.onChange({ label: 'Untracked Page', value: 'page-42' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: { pageId: 'page-42', assignedUsers: ['acc-1'], assignedGroups: [], assignedGroupOptions: [], dueDate: null, reconfirmOnChange: false },
+    });
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: { rows: [row({ pageId: 'page-42', title: 'Untracked Page' })], nextCursor: null } });
+    await act(async () => {
+      renderer.root.findByType(LoadingButton).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('getDashboard', expect.objectContaining({ statusFilter: 'all' }));
+    expect(extractText(renderer.toJSON())).toContain('Untracked Page');
   });
 });

@@ -246,22 +246,45 @@ Where the reference used a Custom UI macro-config panel (`docs/04` §3.1), we us
   `DynamicTable`, `ProgressBar` in %, overdue marker, voluntary "—" tooltip, `[deleted page {id}]`
   rows excluded from %, first-run `EmptyState`, no-access `EmptyState` (role gate: Confluence admin
   OR compliance-managers group).
+- **Track a page (2026-07-22, owner-reported gap):** starting to track a page used to require adding
+  the macro to it and opening its config modal from inside the page — there was no way to do it from
+  the dashboard at all, and the first-run `EmptyState` only pointed at documentation. A page-title
+  search box (`searchPages` resolver → `auth.ts`'s `searchPagesByTitle`, `GET /wiki/api/v2/pages?title=`
+  under the already-declared `read:page:confluence` — **exact title match only**, no new scope) now
+  renders in the toolbar in both the empty and populated states; picking a result opens the same
+  `ConfigModal` used everywhere else for that `pageId`. Saving with even an empty assignment creates
+  an active `page-config` (voluntary) — the same effect as the auto-tracking fix below, just
+  deliberate instead of triggered by someone else's confirm click. The macro is no longer the only way
+  to start tracking a page; it remains available for teams that prefer an in-page call to action.
 - **Visibility rule (normative, `docs/02` §4):** bulk `asUser` page resolution filters rows; an
   `asApp` existence probe separates deleted (shown, no title) from viewer-restricted (row omitted
   entirely). A manager sees no trace of pages they personally can't view.
 - **Drill-down:** five tabs (Outstanding / Confirmed / Voluntary / Cannot view / History) with
   counts; group membership resolved at call time; permission-check fan-out **batched ~10 concurrent
   with per-invocation cache**, 404→`[deleted user]`; counter self-heal on load; History from
-  `config-audit`.
+  `config-audit`. **Configure button (2026-07-22):** opens the same `ConfigModal` component the
+  macro uses, for this `pageId` — this is the "reachable from a dashboard row" wiring §1/§4.3 always
+  intended but T9/T10 never actually built; refetches `getPageDetail` on save so the tabs/summary
+  reflect the new assignment without leaving the page.
 - **Export:** the "Export" button doesn't open an in-page dialog — UI Kit can't trigger a browser
   download, so it never owned that job. It calls `router.navigate()` to the Custom UI export
   surface (§5, `exportNavigation.ts`), carrying the current scope (page/space) as a query param.
   That surface owns the format/scope/date-range/status-filter form and the download itself.
 
 ### 4.5 Settings (`settings.tsx`) — admin only (`docs/04` §3.5)
-Compliance-managers group picker, defaults (reconfirm off in v1), "Export all data" (site scope
-through the same export pipeline), 28-day/21-day data-lifecycle notice (exact i18n copy).
-`getSettings`/`saveSettings` admin-gated.
+Compliance-managers **users and groups** picker (multi-select of each — `UserPicker isMulti` +
+group `Select isMulti`, same pattern as §4.3's `ConfigModal`, shared via `multiPickerValue.ts`;
+changed 2026-07-22 from a single-group `Select`, owner-reported bug: selecting a second group
+silently replaced the first instead of adding to it), "Export all data" (site scope through the
+same export pipeline), 28-day/21-day data-lifecycle notice (exact i18n copy). `getSettings`/
+`saveSettings` admin-gated. The "defaults for new configurations" (reconfirm-on-change default)
+toggle that used to sit here was removed the same day: v1 has no code path that reads a per-site
+default (each page's `reconfirmOnChange` is set — and locked — individually in `ConfigModal`), so
+the control was permanently disabled and did nothing but confuse. Bring it back once v1.1
+implements a real per-site default. `SettingsRecord.complianceManagersGroupId` (singular) stays
+declared in `manifest.yml` as a dead attribute for schema compat with sites that configured it
+before this change — `storage/settings.ts`'s `getSettings` migrates it into
+`complianceManagersGroupIds` on read; nothing writes it anymore.
 
 ---
 
@@ -395,7 +418,7 @@ Attestly build over-requested** so the reduction is deliberate.
 | Scope | Kept? | Why (v1) |
 |---|---|---|
 | `storage:app` | ✅ | KVS custom entities — the whole datastore |
-| `read:page:confluence` | ✅ | server-authoritative page version + title (v2 pages API); the `confirm` proof-of-view read |
+| `read:page:confluence` | ✅ | server-authoritative page version + title (v2 pages API); the `confirm` proof-of-view read; also covers the dashboard's page-title search (§4.4, 2026-07-22) — same v2 `/pages` endpoint, no addition needed |
 | `read:user:confluence` | ✅ | display-name resolution at render/export (granular; not the broad `read:confluence-user`) |
 | `read:group:confluence` | ✅ | resolve group membership for assignments + managers group |
 | `read:content.permission:confluence` | ✅ | other-user "can view" checks (cannot-view tab) + deleted-vs-restricted probe |

@@ -107,7 +107,9 @@ No assignment set = voluntary-only mode (R5 for everyone). Panel shows "No requi
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-DynamicTable, ProgressBar in % cell, overdue = warning icon + red date. Row click → drill-down. Empty state: onboarding illustration + "Add the Read confirmation macro to any page to start tracking" + docs link (first-run experience matters for trial conversion).
+DynamicTable, ProgressBar in % cell, overdue = warning icon + red date. Row click → drill-down. Empty state: onboarding illustration + docs link.
+
+**Track a page (2026-07-22, owner-reported gap):** a page-title search box sits above the filter row in both the empty and populated states — "Search for a page above to start tracking who must read it — no macro required. You can still add the Read confirmation macro to a page directly if you prefer." Picking a result opens the same assignment modal used elsewhere (§3.1) for that page; saving (even with nobody assigned) is what makes it "tracked." The macro is no longer the only entry point.
 
 ### 3.3 Drill-down (per page)
 
@@ -128,6 +130,7 @@ DynamicTable, ProgressBar in % cell, overdue = warning icon + red date. Row clic
 - "Cannot view" tab surfaces PRD B1's flag with fix hint ("grant page permission or remove from assignment").
 - History tab = configAudit log (who changed assignments, when) — the auditor's "who was required since when."
 - Expired confirmations (v1.1) appear in Outstanding with note "confirmed v5 — page now v7."
+- **Configure button (2026-07-22):** opens the same assignment modal as §3.1, for this page, without leaving the dashboard — closes the "reachable from a dashboard row" gap this doc always intended (§3.1's original note) but which was never actually wired up.
 
 ### 3.4 Export dialog
 
@@ -135,7 +138,7 @@ ModalDialog: format (CSV / PDF), scope (This page / Space / Entire site), date r
 
 ### 3.5 Settings (Confluence admin)
 
-Compliance-managers group picker (grants dashboard access to non-admins), defaults (reconfirm behavior, reminder cadence v1.1), "Export all data" button, data-lifecycle notice (uninstall deletes data — PRD G2).
+Compliance-managers users **and** groups picker (multi-select of each, changed 2026-07-22 from a single-group picker — grants dashboard access to non-admins), "Export all data" button, data-lifecycle notice (uninstall deletes data — PRD G2). The "defaults for new configurations" (reconfirm behavior) section was removed from this page (2026-07-22): v1 has no code path that reads a per-site default, so the control was permanently disabled and did nothing; reinstate it once v1.1 implements the real default.
 
 ## 4. Flow diagrams
 

@@ -26,6 +26,7 @@ import { useInvoke } from './useInvoke';
 import { SurfaceHeader } from './SurfaceHeader';
 import { formatLocalDateTime, formatLocalDate } from './formatLocalDateTime';
 import { openExportPage } from './exportNavigation';
+import { ConfigModal } from './ConfigModal';
 import type {
   GetPageDetailPayload,
   GetPageDetailResponse,
@@ -54,6 +55,15 @@ import type {
  * tabs come from the same getPageDetail call that opens the drill-down, but
  * config-audit is a separate, potentially-unbounded log a manager may never
  * open (T9's "never fetch more than the view needs" principle, T10 style).
+ *
+ * "Configure" button (2026-07-22, owner-reported gap): editing who must
+ * confirm this page used to require visiting the page itself and opening
+ * the macro's config modal — docs/07 §4.3 always intended "the same
+ * ConfigModal is reachable from a dashboard row", but T9/T10 never actually
+ * wired a button for it. Opens the same ConfigModal component the macro
+ * uses (same invoke('saveConfig'), same access gate re-checked server-side)
+ * and refetches the drill-down on save so the tabs/summary reflect the new
+ * assignment immediately.
  */
 
 export interface PageDetailProps {
@@ -189,6 +199,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tabIndex, setTabIndex] = useState(TAB_OUTSTANDING);
   const [exportNavError, setExportNavError] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   async function handleExportClick(): Promise<void> {
     const opened = await openExportPage({ pageId });
@@ -217,6 +228,17 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
     // Runs once per mount (one drill-down instance per pageId).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]);
+
+  function handleConfigSaved(): void {
+    setConfigOpen(false);
+    // The modal (and this whole component) stays mounted across the save --
+    // unlike the mount effect above, there is no unmount race to guard here.
+    void detailInvoke.run({ pageId }).then((result) => {
+      if (result.ok) {
+        setData(result.data);
+      }
+    });
+  }
 
   async function loadHistory(cursor?: string): Promise<void> {
     const result = await historyInvoke.run({ pageId, cursor });
@@ -263,9 +285,14 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
         icon="page"
         title={title}
         action={
-          <Button iconBefore="export" onClick={() => void handleExportClick()}>
-            {t('dashboard.export')}
-          </Button>
+          <Inline space="space.100" alignBlock="center">
+            <Button iconBefore="edit" onClick={() => setConfigOpen(true)}>
+              {t('detail.configure')}
+            </Button>
+            <Button iconBefore="export" onClick={() => void handleExportClick()}>
+              {t('dashboard.export')}
+            </Button>
+          </Inline>
         }
       />
       {exportNavError ? (
@@ -273,6 +300,7 @@ export function PageDetail({ pageId, onBack }: PageDetailProps): React.JSX.Eleme
           <Text>{t('export.navError')}</Text>
         </SectionMessage>
       ) : null}
+      {configOpen ? <ConfigModal pageId={pageId} onClose={() => setConfigOpen(false)} onSaved={handleConfigSaved} /> : null}
       <Inline space="space.300" alignBlock="center" shouldWrap>
         <StatChip icon="people-group" label={t('detail.stat.assigned')} value={data.summary.assigned} />
         <StatChip icon="check-mark" label={t('detail.tab.confirmed')} value={data.summary.confirmed} />

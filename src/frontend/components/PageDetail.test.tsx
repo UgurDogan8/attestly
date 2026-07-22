@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { Button, Tabs, User } from '@forge/react';
+import { Button, LoadingButton, Tabs, User } from '@forge/react';
 import { PageDetail } from './PageDetail';
 import type { GetPageDetailResponse, DetailUserRow } from '../../shared';
 
@@ -204,12 +204,65 @@ describe('PageDetail — export (T11, revised post-PR-review to the Custom UI ex
     bridge.invoke.mockResolvedValue({ ok: true, data: detailResponse({ pageId: 'page-1', title: 'Security Policy' }) });
     const renderer = await mount();
 
+    const exportButton = renderer.root.findAllByType(Button).find((b) => b.props.iconBefore === 'export');
     await act(async () => {
-      renderer.root.findByType(Button).props.onClick();
+      exportButton!.props.onClick();
       await Promise.resolve();
     });
     expect(bridge.router.getUrl).toHaveBeenCalledWith({ target: 'module', moduleKey: 'acknowledge-export', spaceKey: undefined });
     expect(bridge.router.navigate).toHaveBeenCalledWith(`${EXPORT_PAGE_URL}?pageId=page-1`);
+  });
+});
+
+describe('PageDetail — Configure (2026-07-22: assignment editable from the drill-down, docs/07 §4.3)', () => {
+  const EMPTY_CONFIG = { pageId: 'page-1', assignedUsers: [], assignedGroups: [], assignedGroupOptions: [], dueDate: null, reconfirmOnChange: false };
+
+  it('clicking Configure opens the assignment modal for this page', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: detailResponse({ pageId: 'page-1' }) });
+    const renderer = await mount();
+
+    const configureButton = renderer.root.findAllByType(Button).find((b) => b.props.iconBefore === 'edit');
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: EMPTY_CONFIG });
+    await act(async () => {
+      configureButton!.props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('getConfig', { pageId: 'page-1' });
+  });
+
+  it('saving the assignment modal closes it and refreshes the drill-down summary', async () => {
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: detailResponse({ pageId: 'page-1', summary: { assigned: 0, confirmed: 0, outstanding: 0, cannotView: 0 } }) });
+    const renderer = await mount();
+
+    const configureButton = renderer.root.findAllByType(Button).find((b) => b.props.iconBefore === 'edit');
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: EMPTY_CONFIG });
+    await act(async () => {
+      configureButton!.props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    bridge.invoke.mockResolvedValueOnce({ ok: true, data: { ...EMPTY_CONFIG, assignedUsers: ['acc-9'] } });
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: detailResponse({
+        pageId: 'page-1',
+        summary: { assigned: 1, confirmed: 0, outstanding: 1, cannotView: 0 },
+        outstanding: [detailRow({ accountId: 'acc-9' })],
+      }),
+    });
+    await act(async () => {
+      renderer.root.findByType(LoadingButton).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(bridge.invoke).toHaveBeenCalledWith('getPageDetail', { pageId: 'page-1' });
+    expect(renderer.root.findAllByType(Button).some((b) => b.props.iconBefore === 'edit')).toBe(true);
+    expect(extractText(renderer.toJSON())).toContain('1');
   });
 });
 

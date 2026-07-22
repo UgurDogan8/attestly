@@ -275,7 +275,7 @@ describe('getDashboardRows (role gate + orchestration)', () => {
   });
 
   it('happy path: returns visible rows and a cursor', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-2'] }));
     fakeApi.setHandler((url) => {
       if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
@@ -292,7 +292,7 @@ describe('getDashboardRows (role gate + orchestration)', () => {
   });
 
   it('a restricted page is entirely absent from the returned rows', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
     await savePageConfig(aPageConfig({ pageId: 'visible-page', spaceKey: 'SEC' }));
     await savePageConfig(aPageConfig({ pageId: 'restricted-page', spaceKey: 'SEC' }));
     fakeApi.setHandler((url) => {
@@ -309,7 +309,7 @@ describe('getDashboardRows (role gate + orchestration)', () => {
   });
 
   it('applies the status filter', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
     await savePageConfig(
       aPageConfig({ pageId: 'done', spaceKey: 'SEC', assignedUsers: ['acc-2'], counters: { confirmedCurrentVersion: 1 } }),
     );
@@ -336,7 +336,7 @@ describe('getDashboardRows (role gate + orchestration)', () => {
   });
 
   it('applies the space filter (via the tracked index, at the storage layer)', async () => {
-    await saveSettings({ schemaVersion: 1, complianceManagersGroupId: 'managers', reconfirmDefault: false });
+    await saveSettings({ schemaVersion: 1, complianceManagersGroupIds: ['managers'], complianceManagersUserIds: [], reconfirmDefault: false });
     await savePageConfig(aPageConfig({ pageId: 'sec-page', spaceKey: 'SEC' }));
     await savePageConfig(aPageConfig({ pageId: 'hr-page', spaceKey: 'HR' }));
     fakeApi.setHandler((url) => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { ReactTestRenderer } from 'react-test-renderer';
-import { Button, LoadingButton, Select, Toggle } from '@forge/react';
+import { Button, LoadingButton, Select, UserPicker } from '@forge/react';
 import { SettingsPage } from './SettingsPage';
 
 jest.mock('@forge/bridge', () => ({
@@ -61,7 +61,13 @@ beforeEach(() => {
 });
 
 function settingsData(overrides: Record<string, unknown> = {}) {
-  return { complianceManagersGroupId: null, complianceManagersGroupName: null, reconfirmDefault: false, ...overrides };
+  return {
+    complianceManagersGroupIds: [],
+    complianceManagersGroupOptions: [],
+    complianceManagersUserIds: [],
+    reconfirmDefault: false,
+    ...overrides,
+  };
 }
 
 describe('SettingsPage — access gates', () => {
@@ -79,25 +85,35 @@ describe('SettingsPage — access gates', () => {
 });
 
 describe('SettingsPage — loaded state', () => {
-  it('renders the configured managers group and the reconfirm default, disabled', async () => {
+  it('renders the configured manager groups and users', async () => {
     bridge.invoke.mockResolvedValue({
       ok: true,
-      data: settingsData({ complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team', reconfirmDefault: true }),
+      data: settingsData({
+        complianceManagersGroupIds: ['g1'],
+        complianceManagersGroupOptions: [{ id: 'g1', name: 'compliance-team' }],
+        complianceManagersUserIds: ['acc-1'],
+      }),
     });
     const renderer = await mount();
 
     const select = renderer.root.findByType(Select);
-    expect(select.props.defaultValue).toEqual({ label: 'compliance-team', value: 'g1' });
+    expect(select.props.defaultValue).toEqual([{ label: 'compliance-team', value: 'g1' }]);
 
-    const toggle = renderer.root.findByType(Toggle);
-    expect(toggle.props.isDisabled).toBe(true);
-    expect(toggle.props.isChecked).toBe(true);
+    const userPicker = renderer.root.findByType(UserPicker);
+    expect(userPicker.props.defaultValue).toEqual(['acc-1']);
   });
 
-  it('no defaultValue on the group Select when nothing is configured yet', async () => {
+  it('no defaultValue selections when nothing is configured yet', async () => {
     bridge.invoke.mockResolvedValue({ ok: true, data: settingsData() });
     const renderer = await mount();
-    expect(renderer.root.findByType(Select).props.defaultValue).toBeUndefined();
+    expect(renderer.root.findByType(Select).props.defaultValue).toEqual([]);
+    expect(renderer.root.findByType(UserPicker).props.defaultValue).toEqual([]);
+  });
+
+  it('no "Defaults for new configurations" section is rendered (removed 2026-07-22 — no v1 code path reads it)', async () => {
+    bridge.invoke.mockResolvedValue({ ok: true, data: settingsData() });
+    const renderer = await mount();
+    expect(extractText(renderer.toJSON())).not.toContain('Defaults for new configurations');
   });
 });
 
@@ -122,29 +138,46 @@ describe('SettingsPage — group search (debounced)', () => {
 });
 
 describe('SettingsPage — save', () => {
-  it('saves the selected group and shows a confirmation on success', async () => {
+  it('saves the selected users and groups and shows a confirmation on success', async () => {
     bridge.invoke.mockResolvedValueOnce({ ok: true, data: settingsData() });
     const renderer = await mount();
 
     await act(async () => {
-      renderer.root.findByType(Select).props.onChange({ label: 'compliance-team', value: 'g1' });
+      renderer.root.findByType(Select).props.onChange([{ label: 'compliance-team', value: 'g1' }]);
+    });
+    await act(async () => {
+      renderer.root.findByType(UserPicker).props.onChange([{ id: 'acc-1', name: 'Ayşe' }]);
     });
 
     bridge.invoke.mockResolvedValueOnce({
       ok: true,
-      data: settingsData({ complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team' }),
+      data: settingsData({
+        complianceManagersGroupIds: ['g1'],
+        complianceManagersGroupOptions: [{ id: 'g1', name: 'compliance-team' }],
+        complianceManagersUserIds: ['acc-1'],
+      }),
     });
     await act(async () => {
       renderer.root.findByType(LoadingButton).props.onClick();
       await Promise.resolve();
     });
 
-    expect(bridge.invoke).toHaveBeenCalledWith('saveSettings', { complianceManagersGroupId: 'g1', reconfirmDefault: false });
+    expect(bridge.invoke).toHaveBeenCalledWith('saveSettings', {
+      complianceManagersGroupIds: ['g1'],
+      complianceManagersUserIds: ['acc-1'],
+      reconfirmDefault: false,
+    });
     expect(extractText(renderer.toJSON())).toContain('Settings saved.');
   });
 
-  it('clearing the group saves null', async () => {
-    bridge.invoke.mockResolvedValueOnce({ ok: true, data: settingsData({ complianceManagersGroupId: 'g1', complianceManagersGroupName: 'compliance-team' }) });
+  it('clearing all managers saves empty arrays', async () => {
+    bridge.invoke.mockResolvedValueOnce({
+      ok: true,
+      data: settingsData({
+        complianceManagersGroupIds: ['g1'],
+        complianceManagersGroupOptions: [{ id: 'g1', name: 'compliance-team' }],
+      }),
+    });
     const renderer = await mount();
 
     await act(async () => {
@@ -157,7 +190,11 @@ describe('SettingsPage — save', () => {
       await Promise.resolve();
     });
 
-    expect(bridge.invoke).toHaveBeenCalledWith('saveSettings', { complianceManagersGroupId: null, reconfirmDefault: false });
+    expect(bridge.invoke).toHaveBeenCalledWith('saveSettings', {
+      complianceManagersGroupIds: [],
+      complianceManagersUserIds: [],
+      reconfirmDefault: false,
+    });
   });
 
   it('shows an error message when save fails', async () => {

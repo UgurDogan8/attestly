@@ -166,6 +166,17 @@ app:
             type: integer
           complianceManagersGroupId:
             type: string
+            # DEAD (schema-compat only, same reasoning as the export-job entity
+            # below): superseded by complianceManagersGroupIds/UserIds once
+            # compliance managers became multi-group + multi-user. No code
+            # writes this key anymore; storage/settings.ts's getSettings folds
+            # any pre-existing single-group value into the new groupIds array
+            # on read, so a site configured before this change keeps its
+            # manager group.
+          complianceManagersGroupIds:
+            type: any
+          complianceManagersUserIds:
+            type: any
           reconfirmDefault:
             type: boolean
       - name: config-audit

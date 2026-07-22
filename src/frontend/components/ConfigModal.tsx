@@ -24,6 +24,7 @@ import { useI18n } from './useI18n';
 import { useInvoke } from './useInvoke';
 import { useDebouncedCallback } from './useDebouncedCallback';
 import { useLatestOnly } from './useLatestOnly';
+import { toSelectOptions, normalizeUserPickerValue, normalizeSelectValue, type SelectOption } from './multiPickerValue';
 import type {
   GetConfigPayload,
   ConfigResponse,
@@ -64,33 +65,6 @@ export interface ConfigModalProps {
   pageId: string;
   onClose: () => void;
   onSaved?: (config: ConfigResponse) => void;
-}
-
-interface SelectOption {
-  label: string;
-  value: string;
-}
-
-function toSelectOptions(groups: GroupOption[]): SelectOption[] {
-  return groups.map((g) => ({ label: g.name, value: g.id }));
-}
-
-/** UI Kit's UserPicker/Select onChange hands back a single item, an array, or null/undefined depending on isMulti and whether the field was cleared -- always coerce to an array before filtering/mapping. */
-function normalizeMultiValue<Item, R>(value: unknown, isItem: (item: unknown) => item is Item, map: (item: Item) => R): R[] {
-  const items = Array.isArray(value) ? value : value ? [value] : [];
-  return items.filter(isItem).map(map);
-}
-
-function normalizeUserPickerValue(value: unknown): string[] {
-  return normalizeMultiValue(value, (item): item is { id: string } => !!item && typeof item === 'object' && 'id' in item, (item) => item.id);
-}
-
-function normalizeSelectValue(value: unknown): GroupOption[] {
-  return normalizeMultiValue(
-    value,
-    (item): item is SelectOption => !!item && typeof item === 'object' && 'value' in item && 'label' in item,
-    (item) => ({ id: item.value, name: item.label }),
-  );
 }
 
 const GROUP_RECOMMENDATION_THRESHOLD = 50;
