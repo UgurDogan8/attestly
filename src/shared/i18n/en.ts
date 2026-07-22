@@ -94,6 +94,11 @@ export const en = {
   'export.to': 'To',
   'export.start': 'Export',
   'export.progress': 'Preparing export — fetching records…',
+  /** T11 chunked export (docs/07 §10): shown after the first of possibly
+   * several `exportRows` round-trips, so a large export shows real,
+   * incrementing progress instead of one static spinner. */
+  'export.progressCount': 'Fetching records… {count} so far',
+  'export.assembling': 'Assembling file…',
   'export.ready': 'Your export is ready.',
   'export.download': 'Download {format}',
   'export.statusFilter': 'Status',

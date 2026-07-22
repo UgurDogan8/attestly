@@ -29,8 +29,54 @@ import apiFake from '@forge/api';
 import { savePageConfig } from '../storage/configs';
 import { saveSettings } from '../storage/settings';
 import { writeConfirmation } from '../storage/confirmations';
-import { exportFile } from './export';
-import type { ExportFilePayload, ExportFileResponse } from '../shared';
+import { exportRows, buildPdfExport } from './export';
+import { toCsv } from '../domain/csv';
+import { CSV_HEADER, exportRowToCsvCells, exportFilename, type ExportRow } from '../domain/export';
+import type { ExportFilePayload, Result } from '../shared';
+
+/** Test-only convenience shape — mirrors the old single-call `exportFile`'s
+ * response, assembled here from the chunked resolvers below. */
+type ExportFileResponse = { format: 'csv'; filename: string; csv: string } | { format: 'pdf'; filename: string; base64: string };
+
+/**
+ * Drains `exportRows` the same way the Custom UI export surface
+ * (`static/export-ui/src/main.ts`) does — loop until `nextCursor` is null,
+ * then assemble the final file exactly how the client assembles it (CSV
+ * here directly; PDF via `buildPdfExport`). Kept as a same-signature
+ * drop-in for the old single-call `exportFile` this replaced (git history)
+ * so every test below still reads as "call exportFile, inspect the file" —
+ * only now it's genuinely exercising the chunked, multi-invocation resolver
+ * underneath, including the >100-page test's real cursor continuation.
+ */
+async function exportFile(payload: ExportFilePayload, accountId: string): Promise<Result<ExportFileResponse>> {
+  const rows: ExportRow[] = [];
+  let cursor: string | undefined;
+  let exportedAtUtc: string | undefined;
+
+  for (;;) {
+    const chunk = await exportRows({ ...payload, cursor, exportedAtUtc }, accountId);
+    if (!chunk.ok) {
+      return chunk;
+    }
+    rows.push(...chunk.data.rows);
+    exportedAtUtc = chunk.data.exportedAtUtc;
+    if (!chunk.data.nextCursor) {
+      break;
+    }
+    cursor = chunk.data.nextCursor;
+  }
+
+  if (payload.format === 'pdf') {
+    const pdf = await buildPdfExport({ scope: payload.scope, exportedAtUtc: exportedAtUtc as string, rows }, accountId);
+    if (!pdf.ok) {
+      return pdf;
+    }
+    return { ok: true, data: { format: 'pdf', filename: pdf.data.filename, base64: pdf.data.base64 } };
+  }
+
+  const csv = toCsv(CSV_HEADER, rows.map(exportRowToCsvCells));
+  return { ok: true, data: { format: 'csv', filename: exportFilename(payload.scope, exportedAtUtc as string, 'csv'), csv } };
+}
 
 const fakeKvs = kvsFake as unknown as InMemoryKvs;
 const fakeApi = apiFake as unknown as FakeForgeApi;
@@ -70,6 +116,12 @@ describe('exportFile — access gates', () => {
   it('FORBIDDEN without compliance-manager membership', async () => {
     fakeApi.setHandler(() => jsonResponse(200, { results: [] }));
     const result = await exportFile({ format: 'csv', scope: 'site' }, 'acc-1');
+    expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
+  });
+
+  it('buildPdfExport: FORBIDDEN without compliance-manager membership, even with a well-formed row set', async () => {
+    fakeApi.setHandler(() => jsonResponse(200, { results: [] }));
+    const result = await buildPdfExport({ scope: 'site', exportedAtUtc: '2026-07-22T00:00:00Z', rows: [] }, 'acc-1');
     expect(result).toMatchObject({ ok: false, code: 'FORBIDDEN' });
   });
 });
@@ -175,6 +227,35 @@ describe('exportFile — scope resolution (data model §4, visibility rule)', ()
     const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site' }, 'acc-1'));
     // Page 119 is well past the old 100-id bulk-read cap.
     expect(csv).toContain('page-119');
+  });
+
+  it('T11 fix: a site export past the KVS page cap genuinely spans multiple exportRows calls, not one', async () => {
+    await asManager();
+    const pageIds = Array.from({ length: 120 }, (_, i) => `page-${i}`);
+    for (const pageId of pageIds) {
+      await savePageConfig(aPageConfig({ pageId, spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
+    }
+    fakeApi.setHandler(visibleHandler(pageIds.map((id) => ({ id, title: id }))));
+
+    const first = await exportRows({ format: 'csv', scope: 'site' }, 'acc-1');
+    if (!first.ok) {
+      throw new Error('expected first chunk to succeed');
+    }
+    // 120 tracked pages, one KVS page of ≤100 configs per call -- the first
+    // call alone can never see every page, unlike the old single-invocation
+    // exportFile.
+    expect(first.data.nextCursor).not.toBeNull();
+    expect(first.data.rows.length).toBeLessThan(120);
+
+    const second = await exportRows({ format: 'csv', scope: 'site', cursor: first.data.nextCursor ?? undefined, exportedAtUtc: first.data.exportedAtUtc }, 'acc-1');
+    if (!second.ok) {
+      throw new Error('expected second chunk to succeed');
+    }
+    expect(second.data.nextCursor).toBeNull();
+    expect(first.data.rows.length + second.data.rows.length).toBe(120);
+    // data model §4: exported_at_utc must be identical on every row of one export.
+    expect(second.data.exportedAtUtc).toBe(first.data.exportedAtUtc);
+    expect(second.data.rows.every((row) => row.exportedAtUtc === first.data.exportedAtUtc)).toBe(true);
   });
 });
 

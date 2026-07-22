@@ -46,9 +46,9 @@ Table-driven over (records, currentVersion, reconfirmOnChange, permission):
 - 0 assigned → "—" semantics, not 0% (UX §5)
 - group + direct assignment overlap → user counted once
 
-### 2.4 CSV generation (data model §4)
+### 2.4 CSV generation (data model §4, format revised 2026-07-22 — see that section for the incident history)
 
-- exact header order; RFC 4180 quoting (names with commas, quotes, newlines); UTF-8 BOM present
+- exact header order; tab-delimited, quoting only tab/quote/newline (names with commas, quotes, newlines); UTF-16LE BOM present
 - outstanding assignees emitted with empty confirmation fields (invariant 3)
 - row count law: assigned×pages + voluntary records (invariant 3), property-tested with generated fixtures
 - deleted page / deactivated / erased user placeholders (`[deleted page {id}]`, `[deactivated]`, `[deleted user]`)

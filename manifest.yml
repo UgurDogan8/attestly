@@ -37,11 +37,12 @@ modules:
       # download API: everything else (role gate, viewer-visibility
       # filtering, row building, CSV/PDF byte assembly) still happens
       # entirely server-side in the same `resolver` function this app
-      # already uses everywhere else (src/resolvers/export.ts's `exportFile`
-      # resolver) — this page's only job is to call it via invoke() and turn
-      # the returned bytes into a browser download. There is no webtrigger
-      # anywhere in this app: no token, no shared secret, no separate
-      # download URL to guard, leak, or replay.
+      # already uses everywhere else (src/resolvers/export.ts's `exportRows`/
+      # `buildPdfExport`) — this page's only job is to loop `invoke()` calls
+      # (row-fetching spans invocations past a page-count/time budget, T11)
+      # and turn the accumulated result into a browser download. There is no
+      # webtrigger anywhere in this app: no token, no shared secret, no
+      # separate download URL to guard, leak, or replay.
       resource: export-ui
       route: read-confirmations-export
       title: 'Attestly: Export read confirmations'

@@ -1,15 +1,24 @@
 import { computeStatus } from '../domain/status';
 import type { ConfirmationRecord } from '../domain/confirm';
-import { CSV_HEADER, exportRowToCsvCells, matchesDateRange, type ExportRow } from '../domain/export';
-import { toCsv } from '../domain/csv';
+import { matchesDateRange, exportFilename, type ExportRow } from '../domain/export';
 import { buildPdf } from '../domain/pdf';
 import { isComplianceManager, getGroupMemberAccountIds, checkViewPermission, resolveUserDisplayName } from './auth';
 import { resolvePageVisibility, buildDashboardRow, matchesStatusFilter, type PageVisibility } from './dashboard';
 import { mapWithConcurrency } from './concurrency';
-import { getPageConfig, drainTrackedPages, type PageConfigRecord } from '../storage/configs';
+import { getPageConfig, queryTrackedPage, type PageConfigRecord } from '../storage/configs';
 import { drainByPage } from '../storage/confirmations';
 import { APP_VERSION } from '../version';
-import { ok, err, isUnresolvedSpaceKey, type Result, type ExportFilePayload, type ExportFileResponse, type AssignmentType } from '../shared';
+import {
+  ok,
+  err,
+  isUnresolvedSpaceKey,
+  type Result,
+  type ExportRowsPayload,
+  type ExportRowsResponse,
+  type BuildPdfExportPayload,
+  type BuildPdfExportResponse,
+  type AssignmentType,
+} from '../shared';
 
 /** Found in review: the dashboard's "unresolved space key" placeholder (Dashboard.tsx) was never
  * applied here, so the raw numeric spaceId fallback (auth.ts's resolveSpaceKey) leaked into the
@@ -18,25 +27,42 @@ import { ok, err, isUnresolvedSpaceKey, type Result, type ExportFilePayload, typ
 const UNRESOLVED_SPACE_KEY_PLACEHOLDER = '(unresolved)';
 
 /**
- * exportFile (T11/T12, revised post-PR-review — docs/07 §5). Runs entirely
- * `asUser()` in one resolver call, the same way `getDashboard`/`getPageDetail`
- * do — there is no webtrigger, token, secret, or transient job record
- * anymore. The old design needed all of that purely to work around UI Kit
- * having no Blob/DOM download API; the Custom UI export surface
- * (`static/export-ui/`) that calls this resolver *can* trigger a real
- * browser download itself, so this function's only job is: resolve the
- * exact same viewer-visible page set the dashboard would (reusing
- * `resolvePageVisibility`/`buildDashboardRow`/`matchesStatusFilter`
- * verbatim, the same reason `startExport` reused them before), build rows,
- * and hand back the finished file. Two review-flagged bugs fixed here:
+ * exportRows (T11/T12, revised a second time). The prior version of this
+ * file (`exportFile`, git history) ran entirely in one `asUser()` resolver
+ * call: resolve the whole in-scope page set, drain every one of those
+ * pages' confirmations, permission-check every eligible user, and return
+ * the finished CSV/PDF. That correctly reused
+ * `resolvePageVisibility`/`buildDashboardRow`/`matchesStatusFilter` for the
+ * visibility rule (unchanged below) but never actually satisfied this
+ * task's own accept line for a large export: docs/06 T11 measured ~10s of
+ * KVS/permission work per 10k records during the original spike and called
+ * spanning invocations mandatory; docs/07 §10 flagged the single-call
+ * version as an unconfirmed residual risk, not a proven-safe simplification.
  *
- *  1. `resolvePageVisibility` now internally chunks — a >100-page site/space
- *     export no longer silently drops every page past the first bulk-read
- *     batch as "restricted" (src/resolvers/dashboard.ts).
- *  2. Status is computed against the page's real live version
- *     (`resolvePageVisibility`'s own `visible.version`), not the confirmer's
- *     own last-confirmed version — an export can now actually report
- *     `expired`, not just `confirmed`/`outstanding`.
+ * This is that fallback, built now rather than waited on: one bounded chunk
+ * of tracked pages per call, using `queryTrackedPage`'s own KVS cursor — the
+ * identical client-driven-pagination contract `getDashboard` already uses
+ * (tech design §9; `storage/configs.ts`'s docstring on `queryTrackedPage`
+ * says exactly this: "a generator can't resume across separate serverless
+ * invocations"). The Custom UI export surface (`static/export-ui/`) loops
+ * `invoke('exportRows', …)` until `nextCursor` is null, accumulating
+ * `ExportRow[]` itself, then assembles the final file: CSV client-side
+ * (`domain/csv.ts` is pure, already cross-imported by that bundle for
+ * i18n) or via one final `buildPdfExport` call below (`domain/pdf.ts`
+ * writes a Node `Buffer`, which the Custom UI page's browser context
+ * doesn't have).
+ *
+ * scope="page" is exempt from chunking: a single page's assignee list is
+ * already small (data model §2.2's soft assignee-count cap) and comes back
+ * complete in one call, same as it always did.
+ *
+ * Trade-off from chunking: `createGroupMembersLookup`'s cache below now
+ * only covers the pages in *one* chunk, not the whole export — a group
+ * assigned on pages spread across many chunks gets its member list
+ * refetched once per chunk instead of once per export. Accepted rather than
+ * threading a cache through the client-held cursor: the KVS drain this
+ * whole change targets dominates real-world cost far more than one extra
+ * group-membership fetch every few dozen pages.
  */
 
 /** Data model §4: exported timestamps are YYYY-MM-DDTHH:mm:ssZ, no milliseconds. */
@@ -52,21 +78,18 @@ const PERMISSION_CHECK_CONCURRENCY = 10;
 // multiplying page-level and user-level concurrency together unchecked.
 const PAGE_PROCESSING_CONCURRENCY = 4;
 
-async function candidatePages(payload: ExportFilePayload): Promise<PageConfigRecord[]> {
+async function candidatePageConfigs(payload: ExportRowsPayload): Promise<{ configs: PageConfigRecord[]; nextCursor: string | null }> {
   if (payload.scope === 'page') {
     if (!payload.scopeValue) {
-      return [];
+      return { configs: [], nextCursor: null };
     }
     const config = await getPageConfig(payload.scopeValue);
-    return config && config.active ? [config] : [];
+    return { configs: config && config.active ? [config] : [], nextCursor: null };
   }
 
   const spaceKey = payload.scope === 'space' ? payload.scopeValue : undefined;
-  const pages: PageConfigRecord[] = [];
-  for await (const chunk of drainTrackedPages(spaceKey)) {
-    pages.push(...chunk);
-  }
-  return pages;
+  const page = await queryTrackedPage(spaceKey, payload.cursor);
+  return { configs: page.results, nextCursor: page.nextCursor ?? null };
 }
 
 interface ExportPage {
@@ -184,12 +207,12 @@ async function buildPageRows(ctx: PageRowsContext): Promise<ExportRow[]> {
   return [...assignedRows, ...voluntaryRows];
 }
 
-export async function exportFile(payload: ExportFilePayload, accountId: string): Promise<Result<ExportFileResponse>> {
+export async function exportRows(payload: ExportRowsPayload, accountId: string): Promise<Result<ExportRowsResponse>> {
   if (!(await isComplianceManager(accountId))) {
     return err('FORBIDDEN', 'You need compliance-manager access to export.');
   }
 
-  const configs = await candidatePages(payload);
+  const { configs, nextCursor } = await candidatePageConfigs(payload);
   const visibility = await resolvePageVisibility(configs.map((c) => c.pageId));
 
   const pages: ExportPage[] = configs
@@ -208,7 +231,10 @@ export async function exportFile(payload: ExportFilePayload, accountId: string):
     })
     .filter((page): page is ExportPage => page !== null);
 
-  const exportedAtUtc = dropMilliseconds(new Date().toISOString());
+  // First call generates it; every later call in this export must echo the
+  // exact same value back (data model §4: identical exported_at_utc on every
+  // row of one export) rather than let this chunk re-read the clock.
+  const exportedAtUtc = payload.exportedAtUtc ?? dropMilliseconds(new Date().toISOString());
   const displayNameCache = new Map<string, string>();
   const groupMembersOf = createGroupMembersLookup();
 
@@ -223,16 +249,14 @@ export async function exportFile(payload: ExportFilePayload, accountId: string):
     .flat()
     .filter((row) => matchesDateRange(row, payload.dateFrom, payload.dateTo));
 
-  const dateStamp = exportedAtUtc.slice(0, 10);
+  return ok({ rows, nextCursor, exportedAtUtc });
+}
 
-  if (payload.format === 'pdf') {
-    const pdf = buildPdf({ scope: payload.scope, exportedAtUtc, appVersion: APP_VERSION }, rows);
-    return ok({ format: 'pdf', filename: `read-confirmations_${payload.scope}_${dateStamp}.pdf`, base64: pdf.toString('base64') });
+export async function buildPdfExport(payload: BuildPdfExportPayload, accountId: string): Promise<Result<BuildPdfExportResponse>> {
+  if (!(await isComplianceManager(accountId))) {
+    return err('FORBIDDEN', 'You need compliance-manager access to export.');
   }
 
-  const csv = toCsv(
-    CSV_HEADER,
-    rows.map((row) => exportRowToCsvCells(row)),
-  );
-  return ok({ format: 'csv', filename: `read-confirmations_${payload.scope}_${dateStamp}.csv`, csv });
+  const pdf = buildPdf({ scope: payload.scope, exportedAtUtc: payload.exportedAtUtc, appVersion: APP_VERSION }, payload.rows);
+  return ok({ filename: exportFilename(payload.scope, payload.exportedAtUtc, 'pdf'), base64: pdf.toString('base64') });
 }

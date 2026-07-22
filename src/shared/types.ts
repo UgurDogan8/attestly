@@ -288,14 +288,21 @@ export interface GetPageHistoryResponse {
 }
 
 /**
- * exportFile (T11/T12, revised post-PR-review — docs/07 §5). `format`
- * selects which serializer runs over the exact same rows (docs/07 §5: "CSV +
- * PDF come from the same export.ts rows -> record parity guaranteed") — no
- * separate resolver or job shape per format. Called from the Custom UI
- * export surface (`static/export-ui/`) via a normal `invoke()` — there is no
- * webtrigger, token, or job record anymore: the file comes back directly in
- * the resolver response, and the Custom UI page turns it into a browser
- * download (UI Kit can't; that's the one thing this surface exists for).
+ * exportRows (T11/T12, revised a second time — docs/07 §10 flagged the prior
+ * single-invocation `exportFile` as an unconfirmed risk: it drained every
+ * in-scope page's confirmations and ran every eligible user's permission
+ * check inside one resolver call, the exact ~10s-per-10k-records cost T11's
+ * own spike measured and required "must span invocations" for (docs/06
+ * T11). This is that: one bounded chunk of tracked pages per call (reusing
+ * `queryTrackedPage`'s own KVS cursor — the same client-driven-pagination
+ * contract `getDashboard` already uses, tech design §9), returned to the
+ * Custom UI export surface (`static/export-ui/`) which loops `invoke()`
+ * until `nextCursor` is null, accumulating rows itself. `format` selects
+ * only how the *finished* file gets assembled (CSV client-side via the same
+ * pure `domain/csv.ts` the old resolver used; PDF via one final
+ * `buildPdfExport` call, since `domain/pdf.ts` writes Node `Buffer`s) — row
+ * fetching itself is identical either way (docs/07 §5: "CSV + PDF come from
+ * the same rows -> record parity guaranteed").
  */
 export type ExportFormat = 'csv' | 'pdf';
 export type ExportScope = 'page' | 'space' | 'site';
@@ -317,10 +324,68 @@ export interface ExportFilePayload {
   dateTo?: string;
 }
 
-/** `csv` is plain UTF-8 text (already BOM-prefixed, domain/csv.ts); `pdf` is base64 — the only one of the two that's binary. */
-export type ExportFileResponse =
-  | { format: 'csv'; filename: string; csv: string }
-  | { format: 'pdf'; filename: string; base64: string };
+/**
+ * One chunk of a spanning export. `cursor` is `queryTrackedPage`'s own
+ * opaque KVS cursor (ignored for scope="page" — a single page's row set is
+ * already small, data model §2.2's soft assignee cap, and returned complete
+ * in one call). `exportedAtUtc` must be echoed back unchanged on every call
+ * after the first: data model §4 requires it identical on every row of one
+ * export, so it can't be re-read from the clock per chunk.
+ */
+export interface ExportRowsPayload extends ExportFilePayload {
+  cursor?: string;
+  exportedAtUtc?: string;
+}
+
+/** Mirrors domain/export.ts's `ExportRow`, redeclared (not imported) to keep
+ * this invoke contract independent of the domain layer, same convention as
+ * `PercentSummary` above. */
+export interface ExportRowView {
+  pageTitle: string;
+  pageId: string;
+  spaceKey: string;
+  pageVersionConfirmed: number | null;
+  userDisplayName: string;
+  userAccountId: string;
+  assignmentType: AssignmentType;
+  status: UserStatus;
+  confirmedAtUtc: string | null;
+  dueDate: string | null;
+  exportedAtUtc: string;
+  appVersion: string;
+}
+
+export interface ExportRowsResponse {
+  rows: ExportRowView[];
+  /** Null once every in-scope page has been processed — the client stops
+   * calling exportRows and assembles the final file. */
+  nextCursor: string | null;
+  /** Echo of the value used for this chunk's rows — the first call
+   * generates it; the client must thread it into every later call's payload. */
+  exportedAtUtc: string;
+}
+
+/**
+ * buildPdfExport — the one step that still needs a resolver call after the
+ * client has finished accumulating every chunk's rows (`domain/pdf.ts`
+ * writes a Node `Buffer`, which doesn't exist in the Custom UI page's
+ * browser context). Pure formatting over already-fetched, already
+ * visibility-filtered rows — no KVS reads, no permission fan-out — so it
+ * can't hit the same timeout `exportRows` was built to avoid regardless of
+ * row count. Still gated on compliance-manager access (defense in depth:
+ * nothing here trusts a client-supplied row set for anything beyond
+ * rendering it back to the same caller).
+ */
+export interface BuildPdfExportPayload {
+  scope: ExportScope;
+  exportedAtUtc: string;
+  rows: ExportRowView[];
+}
+
+export interface BuildPdfExportResponse {
+  filename: string;
+  base64: string;
+}
 
 /**
  * getSettings / saveSettings (T13, docs/04 §3.5, data model §2.3). Gated on

@@ -64,6 +64,11 @@ export function exportRowToCsvCells(row: ExportRow): (string | number | null)[] 
  * Bounds are ISO date strings (`YYYY-MM-DD`); a UTC timestamp compares
  * correctly against them lexicographically up to the date portion.
  */
+/** Filename convention shared by CSV (assembled client-side, `static/export-ui/src/main.ts`) and PDF (assembled server-side, `resolvers/export.ts`'s `buildPdfExport`) — kept here so neither has to import the other's module. */
+export function exportFilename(scope: string, exportedAtUtc: string, extension: 'csv' | 'pdf'): string {
+  return `read-confirmations_${scope}_${exportedAtUtc.slice(0, 10)}.${extension}`;
+}
+
 export function matchesDateRange(row: ExportRow, dateFrom: string | undefined, dateTo: string | undefined): boolean {
   if (!row.confirmedAtUtc) {
     return true;

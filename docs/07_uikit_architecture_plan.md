@@ -104,7 +104,7 @@ src/
   domain/               PURE — no @forge/* imports anywhere in this dir
     status.ts           computeStatus (docs/03 §3), %-complete
     confirm.ts          idempotency key derivation + record shape
-    csv.ts              CSV builder (docs/03 §4 — exact columns, RFC 4180, BOM)
+    csv.ts              CSV builder (docs/03 §4 — exact columns, tab-delimited, UTF-16LE BOM)
     pdf.ts              minimal PDF builder from the same rows (server-side; WinAnsi + tr chars)
     export.ts           row assembly shared by csv.ts/pdf.ts (docs/03 §4 row law)
   storage/
@@ -334,10 +334,26 @@ over a separate HTTP endpoint that needed its own auth scheme.
   zero, not one) — finding 3's entire class of problem (secret-in-URL, TOCTOU, TTL) has nothing
   left to apply to, because there's no separate one-time-redeemable URL in the first place. The
   file travels back over the same authenticated `invoke()` channel every other feature already uses.
-- No transient `export-job` KVS record either — the whole job happens in one resolver invocation,
-  so there's nothing to leak, replay, or let expire incorrectly.
+- No transient `export-job` KVS record either — the client itself holds the only export-in-progress
+  state (accumulated rows + a KVS cursor + `exportedAtUtc`, all in page memory), so there's nothing
+  server-side to leak, replay, or let expire incorrectly.
 - CSV + PDF still come from the **same rows** (`src/domain/export.ts`) ⇒ record parity guaranteed
   (`docs/03` §4) — unchanged from the original design.
+- **Residual resolved (T11 chunking, no live deploy needed to fix — the risk was structural, not
+  environment-specific):** the paragraph above originally read "the whole job happens in one
+  resolver invocation" — true when this section was first written, and exactly the risk flagged at
+  the bottom of §10 as unconfirmed: `exportFile` drained every in-scope page's confirmations and
+  permission-checked every eligible user inside one call, the same ~10s-per-10k-records cost T11's
+  own spike (docs/06 T11) measured and called out as requiring spanning invocations. Rather than
+  wait for a live deploy to confirm the `invoke()` payload/timeout ceiling would actually be hit,
+  `exportFile` was split into `exportRows` (one bounded chunk of tracked pages per call, via
+  `queryTrackedPage`'s own KVS cursor — the identical client-driven-pagination contract
+  `getDashboard` already uses) and `buildPdfExport` (a final, KVS-free formatting-only call once the
+  client has accumulated every chunk's rows). `static/export-ui/src/main.ts` loops the former,
+  assembles CSV directly (client-side, `domain/csv.ts` is pure) or calls the latter once for PDF.
+  Unit-tested with a 120-tracked-page fixture forcing two real chunks
+  (`src/resolvers/export.test.ts`); a genuine 10k-record timing run on a live site is still open
+  (`docs/08` TC-F7).
 - **Cost:** `static/export-ui/` is a real Vite project (own `package.json`, `node_modules`, build
   output) — the one exception to "UI Kit only, no build step" (§1). CI builds it before `forge
   lint`/tests (`.github/workflows/ci.yml`); Forge's own deploy step needs it built too.
@@ -457,8 +473,9 @@ fails the PR.
   byte-identical); IDs containing `#` handled (escape or reject).
 - **%-complete** (`docs/05` §2.3): voluntary excluded; cannot-view excluded from denominator;
   0-assigned ⇒ "—" not 0%; group+direct overlap counted once.
-- **csv.ts / export.ts** (`docs/05` §2.4): exact header order; RFC 4180 quoting (commas, quotes,
-  newlines, `Ayşe`/`Gökhan`); UTF-8 BOM; outstanding rows with empty confirmation fields;
+- **csv.ts / export.ts** (`docs/05` §2.4, revised — `docs/03` §4's 2026-07-22 format change):
+  exact header order; tab-delimited, quoting only tab/quote/newline (commas, quotes, newlines,
+  `Ayşe`/`Gökhan`); UTF-16LE BOM; outstanding rows with empty confirmation fields;
   **row-count law property test** (`assigned×pages + voluntary`); `[deleted page]`/`[deactivated]`/
   `[deleted user]` placeholders; ISO-8601-Z timestamps.
 - **pdf.ts**: parses (pypdf/pdf-parse) and carries the same rows as the CSV of the same scope +
@@ -545,8 +562,9 @@ only), reminders (`write:comment`, scheduledTrigger) via rolling release + Permi
   verified live 2026-07-12 (§5): it doesn't work, fixed via `router.getUrl()` + `URL.searchParams`.
 - Whether a `confluence:globalPage` module without an explicit "hide from nav" flag adds an
   unwanted nav entry (§5, post-PR-review) — still open, verify on the next real deploy-and-test pass.
-- `invoke()` response payload headroom for a very large single-call export (§5) — the resolver
-  builds the whole file in one invocation now, same memory profile the old webtrigger already had,
-  but the `invoke()` transport's own size ceiling (as opposed to a webtrigger HTTP response's) is
-  unconfirmed against a live site; chunked row-fetching is the fallback if a real deploy hits it.
+- ~~`invoke()` response payload headroom for a very large single-call export~~ — **resolved**,
+  built rather than waited on (§5): `exportFile` is now `exportRows` (chunked — one KVS page of
+  tracked configs, ≤`MAX_PAGE_SIZE`, per call) + `buildPdfExport` (final, KVS-free assembly). Still
+  open: a genuine 10k-record timing run on a live site (`docs/08` TC-F7) to confirm this is actually
+  enough headroom in practice, not just under the fake KVS in tests.
 ```

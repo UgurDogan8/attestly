@@ -92,6 +92,8 @@ export const tr: Record<MessageKey, string> = {
   'export.to': 'Bitiş',
   'export.start': 'Dışa aktar',
   'export.progress': 'Dışa aktarma hazırlanıyor — kayıtlar getiriliyor…',
+  'export.progressCount': 'Kayıtlar getiriliyor… şimdiye kadar {count}',
+  'export.assembling': 'Dosya hazırlanıyor…',
   'export.ready': 'Dışa aktarma hazır.',
   'export.download': '{format} indir',
   'export.statusFilter': 'Durum',

@@ -63,6 +63,13 @@ Per UX §3.3: five tabs with counts; group membership resolved at call time (PRD
 ### T11 · Chunked CSV export — 3d *(depends: T9)*
 Data model §4 is normative: UTF-8 BOM, RFC 4180, exact column order, outstanding rows included, `[deleted page {id}]` rows included, viewer-visibility rule applied. Cursor-chunked resolver (measured ~10s for 10k records — must span invocations), client assembly + download, export dialog per UX §3.4 (scope, date range, status filter, progress).
 **Accept:** 10k-record export completes without invocation timeout; file passes test plan's export fixture (row count = assigned×pages + voluntary; empty confirmation fields for outstanding).
+**Corrected (T11, Jul 2026):** the CSV format itself changed post-implementation — see `docs/03` §4's
+2026-07-22 revision (UTF-16LE, BOM-prefixed, tab-delimited; the UTF-8 BOM/RFC 4180 line above is
+superseded). The "cursor-chunked resolver, spans invocations" requirement above was also initially
+shipped as a single un-chunked `exportFile` call (docs/07 §5's "open residuals" flagged this as an
+unconfirmed risk, not a proven-safe simplification) and was corrected back to genuine chunking
+(`exportRows` + `buildPdfExport`, `docs/07` §5) once identified — this task's accept line is now met
+as originally specified, not by exception.
 
 ### T12 · PDF export (client-side) — 2d *(depends: T11)*
 Same chunked dataset as CSV — no separate resolver (§4); adds report header (scope, exported_at_utc, app version); bundled PDF lib (no CDN — egress-free must hold).

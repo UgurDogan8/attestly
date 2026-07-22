@@ -229,14 +229,10 @@ tr:hover td{background:var(--surface-sunken)}
     <section class="screen" id="screen-byline">
       <div class="pagecard" style="max-width:620px">
         <h3>Security Policy v3</h3>
-        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap">
-          <span class="subtle-text">Ayşe Yılmaz · 12 Jul 2026 ·</span>
-          <span class="loz clickable" id="chipRequired" onclick="openByline('required')">● <span data-i18n="byline.required"></span></span>
-          <span class="loz success clickable" onclick="openByline('confirmed')">✔ <span id="bylineConfirmedChip"></span></span>
-          <span class="loz moved clickable" onclick="openByline('required')">⚠ <span data-i18n="byline.expired"></span></span>
-        </div>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap" id="bylineChips"></div>
       </div>
       <p class="hint" style="margin-top:16px" data-i18n="byline.hiddenNote"></p>
+      <p class="hint" data-i18n="byline.expiredDemoNote"></p>
     </section>
 
     <!-- ============ CONFIG ============ -->
@@ -249,6 +245,12 @@ tr:hover td{background:var(--surface-sunken)}
       <div class="toolbar">
         <h2 data-i18n="dashboard.title"></h2>
         <button class="btn primary" onclick="openModal('exportModal')" data-i18n="dashboard.export"></button>
+      </div>
+      <div class="field" style="margin-top:0; max-width:420px; position:relative">
+        <input type="text" id="trackSearch" style="width:100%" data-i18n-placeholder="dashboard.trackSearch.placeholder" autocomplete="off">
+        <div id="trackSearchResults" style="display:none; position:absolute; z-index:10; width:100%; margin-top:2px;
+          background:var(--surface-overlay); border:1px solid var(--border); border-radius:3px; box-shadow:0 4px 12px var(--shadow)"></div>
+        <p class="hint" data-i18n="dashboard.trackSearch.hint"></p>
       </div>
       <div class="row" style="margin-bottom:16px">
         <select id="fSpace"></select>
@@ -267,8 +269,9 @@ tr:hover td{background:var(--surface-sunken)}
       <button class="btn subtle" onclick="show('dashboard')">← <span data-i18n="detail.back"></span></button>
       <div class="toolbar" style="margin-top:12px">
         <h2 id="detailTitle"></h2>
+        <button class="btn" onclick="openModal('configModal')" data-i18n="detail.configure"></button>
         <button class="btn" data-i18n="dashboard.export"></button>
-        <button class="btn" disabled title="v1.1" data-i18n="detail.remind"></button>
+        <button class="btn" disabled data-i18n-title="config.v11" data-i18n="detail.remind"></button>
       </div>
       <p class="subtle-text" id="detailSummary"></p>
       <div class="tabs" id="detailTabs"></div>
@@ -279,16 +282,15 @@ tr:hover td{background:var(--surface-sunken)}
     <section class="screen" id="screen-settings">
       <h2 data-i18n="settings.title"></h2>
       <div class="field" style="max-width:480px">
-        <label data-i18n="settings.managers"></label>
-        <select style="width:100%"><option>hr-team</option><option>sec-all</option><option>compliance</option></select>
-        <p class="hint" data-i18n="settings.managers.hint"></p>
+        <label data-i18n="settings.managers.users"></label>
+        <div class="chipbox" id="mgrUserChips"></div>
+        <select id="mgrUserAdd" style="margin-top:6px; width:100%"></select>
       </div>
-      <div class="field">
-        <label data-i18n="settings.defaults"></label>
-        <label class="toggle-row" style="margin-top:8px">
-          <span class="switch"><input type="checkbox"><span class="slider"></span></span>
-          <span data-i18n="settings.defaults.reconfirm"></span>
-        </label>
+      <div class="field" style="max-width:480px">
+        <label data-i18n="settings.managers.groups"></label>
+        <div class="chipbox" id="mgrGroupChips"></div>
+        <select id="mgrGroupAdd" style="margin-top:6px; width:100%"></select>
+        <p class="hint" data-i18n="settings.managers.hint"></p>
       </div>
       <div class="field">
         <button class="btn" data-i18n="settings.exportAll"></button>
@@ -327,10 +329,10 @@ tr:hover td{background:var(--surface-sunken)}
   <p class="hint">ⓘ <span data-i18n="config.groupsHint"></span></p>
   <div class="field">
     <label><span data-i18n="config.dueDate"></span> <span class="loz new" data-i18n="config.v11"></span></label>
-    <input type="date" value="2026-08-15">
+    <input type="date" value="2026-08-15" disabled>
   </div>
   <label class="toggle-row">
-    <span class="switch"><input type="checkbox" checked><span class="slider"></span></span>
+    <span class="switch"><input type="checkbox" checked disabled><span class="slider"></span></span>
     <span><span data-i18n="config.reconfirm"></span> <span class="loz new" data-i18n="config.v11"></span></span>
   </label>
   <div id="voluntaryNote" style="margin-top:16px; display:none">
@@ -345,8 +347,8 @@ tr:hover td{background:var(--surface-sunken)}
 <div class="overlay" id="exportModal"><div class="modal" style="width:440px">
   <h3 data-i18n="export.title"></h3>
   <div class="field"><label data-i18n="export.format"></label>
-    <label style="margin-right:16px"><input type="radio" name="fmt" checked> CSV</label>
-    <label><input type="radio" name="fmt"> PDF</label>
+    <label style="margin-right:16px"><input type="radio" name="fmt" checked> <span data-i18n="export.format.csv"></span></label>
+    <label><input type="radio" name="fmt"> <span data-i18n="export.format.pdf"></span></label>
   </div>
   <div class="field"><label data-i18n="export.scope"></label>
     <label style="display:block"><input type="radio" name="scope"> <span data-i18n="export.scope.page"></span></label>
@@ -388,6 +390,7 @@ en:{
  'byline.dialog.title':'Your read confirmation','byline.dialog.outstanding':'You are asked to confirm this page.',
  'byline.dialog.confirmedDetail':'You confirmed version {version} on {datetime}.',
  'byline.hiddenNote':'Viewers with no assignment and no record see nothing here.',
+ 'byline.expiredDemoNote':'The "Re-confirmation required" chip is a separate demo user\'s state — a viewer only ever sees one chip for themselves.',
  'config.title':'Read confirmation settings','config.who':'Who must confirm?','config.users':'Users','config.users.placeholder':'Add individual users…',
  'config.groups':'Groups','config.groups.placeholder':'Add groups…','config.groupsHint':'For teams, prefer groups — new members are included automatically.',
  'config.dueDate':'Due date','config.reconfirm':'Require re-confirmation when the page changes','config.v11':'v1.1',
@@ -397,19 +400,20 @@ en:{
  'dashboard.col.page':'Page','dashboard.col.space':'Space','dashboard.col.assigned':'Assigned','dashboard.col.confirmed':'Confirmed','dashboard.col.percent':'%','dashboard.col.due':'Due',
  'dashboard.voluntaryTooltip':'Voluntary-only page — no required readers.','dashboard.deletedPage':'[deleted page {id}]',
  'dashboard.empty.header':'Start tracking read confirmations','dashboard.empty.description':'Add the Read confirmation macro to any page to start tracking who has read it.','dashboard.empty.action':'Open documentation','dashboard.emptyToggle':'Show empty state',
- 'export.title':'Export confirmations','export.format':'Format','export.scope':'Scope','export.scope.page':'This page','export.scope.space':'Space','export.scope.site':'Entire site',
+ 'dashboard.trackSearch.placeholder':'Search for a page…',
+ 'dashboard.trackSearch.hint':'Search for a page above to start tracking who must read it — no macro required. You can still add the Read confirmation macro to a page directly if you prefer.',
+ 'export.title':'Export confirmations','export.format':'Format','export.format.csv':'CSV','export.format.pdf':'PDF','export.scope':'Scope','export.scope.page':'This page','export.scope.space':'Space','export.scope.site':'Entire site',
  'export.dateRange':'Date range (optional)','export.start':'Export','export.progress':'Preparing export — fetching records…',
  'detail.back':'Back to dashboard','detail.summary':'{confirmed} of {assigned} confirmed · {outstanding} outstanding · {cannotView} cannot view',
  'detail.tab.outstanding':'Outstanding','detail.tab.confirmed':'Confirmed','detail.tab.voluntary':'Voluntary','detail.tab.cannotView':'Cannot view','detail.tab.history':'History',
- 'detail.remind':'Remind','detail.assignedViaGroup':'assigned via group: {group}','detail.assignedDirectly':'assigned directly',
+ 'detail.configure':'Configure','detail.remind':'Remind','detail.assignedViaGroup':'assigned via group: {group}','detail.assignedDirectly':'assigned directly',
  'detail.expiredNote':'confirmed v{oldVersion} — page now v{newVersion}',
  'detail.col.user':'User','detail.col.assignment':'Assignment','detail.col.version':'Version','detail.col.confirmedAt':'Confirmed at (UTC)',
  'detail.cannotView.hint':'These assigned users cannot view the page. Grant page permission or remove them from the assignment.',
  'detail.history.assigned':'{actor} assigned {subject}','detail.history.removed':'{actor} removed {subject}','detail.history.dueDate':'{actor} set due date to {date}',
  'detail.groupDeleted':'group deleted',
- 'settings.title':'Read Confirmation — settings','settings.managers':'Compliance managers group',
- 'settings.managers.hint':'Members of this group can open the dashboard and export data without being Confluence admins.',
- 'settings.defaults':'Defaults for new configurations','settings.defaults.reconfirm':'Require re-confirmation when pages change',
+ 'settings.title':'Read Confirmation — settings','settings.managers.users':'Compliance managers — individual users','settings.managers.groups':'Compliance managers — groups',
+ 'settings.managers.hint':'These users and group members can open the dashboard and export data without being Confluence admins.',
  'settings.exportAll':'Export all data','settings.exportAll.hint':'One CSV with every confirmation record on this site.',
  'settings.lifecycle.title':'Data lifecycle',
  'settings.lifecycle.body':'Uninstalling the app deletes its data after a 28-day retention window. Export before uninstalling. Reinstalling starts empty; recovery within 21 days requires an Atlassian support request.',
@@ -433,6 +437,7 @@ tr:{
  'byline.dialog.title':'Okuma onayınız','byline.dialog.outstanding':'Bu sayfayı onaylamanız isteniyor.',
  'byline.dialog.confirmedDetail':'{version} numaralı sürümü {datetime} tarihinde onayladınız.',
  'byline.hiddenNote':'Ataması ve kaydı olmayan okuyucular burada hiçbir şey görmez.',
+ 'byline.expiredDemoNote':'"Yeniden onay gerekli" etiketi ayrı bir örnek kullanıcının durumudur — bir okuyucu kendisi için her zaman tek bir etiket görür.',
  'config.title':'Okuma onayı ayarları','config.who':'Kimler onaylamalı?','config.users':'Kullanıcılar','config.users.placeholder':'Tek tek kullanıcı ekleyin…',
  'config.groups':'Gruplar','config.groups.placeholder':'Grup ekleyin…','config.groupsHint':'Ekipler için grupları tercih edin — yeni üyeler otomatik dahil edilir.',
  'config.dueDate':'Son tarih','config.reconfirm':'Sayfa değiştiğinde yeniden onay iste','config.v11':'v1.1',
@@ -442,19 +447,20 @@ tr:{
  'dashboard.col.page':'Sayfa','dashboard.col.space':'Alan','dashboard.col.assigned':'Atanan','dashboard.col.confirmed':'Onaylayan','dashboard.col.percent':'%','dashboard.col.due':'Son tarih',
  'dashboard.voluntaryTooltip':'Yalnızca gönüllü sayfa — zorunlu okuyucu yok.','dashboard.deletedPage':'[silinmiş sayfa {id}]',
  'dashboard.empty.header':'Okuma onaylarını takip etmeye başlayın','dashboard.empty.description':'Kimlerin okuduğunu takip etmek için herhangi bir sayfaya Okuma Onayı makrosunu ekleyin.','dashboard.empty.action':'Dokümantasyonu aç','dashboard.emptyToggle':'Boş durumu göster',
- 'export.title':'Onayları dışa aktar','export.format':'Biçim','export.scope':'Kapsam','export.scope.page':'Bu sayfa','export.scope.space':'Alan','export.scope.site':'Tüm site',
+ 'dashboard.trackSearch.placeholder':'Bir sayfa arayın…',
+ 'dashboard.trackSearch.hint':'Kimlerin okuması gerektiğini takip etmeye başlamak için yukarıdan bir sayfa arayın — makro gerekmez. Tercih ederseniz Okuma Onayı makrosunu doğrudan bir sayfaya eklemeye devam edebilirsiniz.',
+ 'export.title':'Onayları dışa aktar','export.format':'Biçim','export.format.csv':'CSV','export.format.pdf':'PDF','export.scope':'Kapsam','export.scope.page':'Bu sayfa','export.scope.space':'Alan','export.scope.site':'Tüm site',
  'export.dateRange':'Tarih aralığı (isteğe bağlı)','export.start':'Dışa aktar','export.progress':'Dışa aktarma hazırlanıyor — kayıtlar getiriliyor…',
  'detail.back':'Kontrol paneline dön','detail.summary':'{assigned} atanandan {confirmed} onayladı · {outstanding} bekliyor · {cannotView} görüntüleyemiyor',
  'detail.tab.outstanding':'Bekleyenler','detail.tab.confirmed':'Onaylayanlar','detail.tab.voluntary':'Gönüllüler','detail.tab.cannotView':'Görüntüleyemeyenler','detail.tab.history':'Geçmiş',
- 'detail.remind':'Hatırlat','detail.assignedViaGroup':'grup üzerinden atandı: {group}','detail.assignedDirectly':'doğrudan atandı',
+ 'detail.configure':'Yapılandır','detail.remind':'Hatırlat','detail.assignedViaGroup':'grup üzerinden atandı: {group}','detail.assignedDirectly':'doğrudan atandı',
  'detail.expiredNote':'v{oldVersion} onaylandı — sayfa şimdi v{newVersion}',
  'detail.col.user':'Kullanıcı','detail.col.assignment':'Atama','detail.col.version':'Sürüm','detail.col.confirmedAt':'Onay zamanı (UTC)',
  'detail.cannotView.hint':'Bu atanan kullanıcılar sayfayı görüntüleyemiyor. Sayfa izni verin veya atamadan çıkarın.',
  'detail.history.assigned':'{actor}, {subject} ataması yaptı','detail.history.removed':'{actor}, {subject} atamasını kaldırdı','detail.history.dueDate':'{actor}, son tarihi {date} olarak ayarladı',
  'detail.groupDeleted':'grup silinmiş',
- 'settings.title':'Okuma Onayı — ayarlar','settings.managers':'Uyum yöneticileri grubu',
- 'settings.managers.hint':'Bu grubun üyeleri, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',
- 'settings.defaults':'Yeni yapılandırmalar için varsayılanlar','settings.defaults.reconfirm':'Sayfalar değiştiğinde yeniden onay iste',
+ 'settings.title':'Okuma Onayı — ayarlar','settings.managers.users':'Uyum yöneticileri — bireysel kullanıcılar','settings.managers.groups':'Uyum yöneticileri — gruplar',
+ 'settings.managers.hint':'Bu kullanıcılar ve grup üyeleri, Confluence yöneticisi olmadan kontrol panelini açabilir ve veri dışa aktarabilir.',
  'settings.exportAll':'Tüm veriyi dışa aktar','settings.exportAll.hint':'Bu sitedeki tüm onay kayıtlarını içeren tek bir CSV.',
  'settings.lifecycle.title':'Veri yaşam döngüsü',
  'settings.lifecycle.body':'Uygulama kaldırıldığında verileri 28 günlük saklama süresinin ardından silinir. Kaldırmadan önce dışa aktarın. Yeniden kurulum boş başlar; 21 gün içinde kurtarma için Atlassian destek talebi gerekir.',
@@ -489,6 +495,7 @@ const USERS = [
  {name:'Deniz Aksoy',   via:['group','contractors'], status:'cannot-view'},
  {name:'Marco Rossi',   via:['group','contractors'], status:'cannot-view'},
  {name:'Zeynep Arslan', via:['direct'],              status:'voluntary', version:7, at:'2026-07-10T09:15:00Z'},
+ {name:'Priya Nair',    via:['group','interns-2025'],status:'outstanding'}, // group removed since assignment (see HISTORY below) — demonstrates the deleted-group badge
 ];
 const HISTORY = [
  {kind:'assigned', actor:'Burak Tutus',  subject:'group sec-all',      at:'2026-06-01T10:00:00Z'},
@@ -496,6 +503,8 @@ const HISTORY = [
  {kind:'assigned', actor:'Selin Öztürk', subject:'John Carter',        at:'2026-06-14T13:37:00Z'},
  {kind:'removed',  actor:'Selin Öztürk', subject:'group interns-2025', at:'2026-06-20T09:12:00Z'},
 ];
+/** Untracked pages a manager can find via the dashboard's "track a page" search (UX §3.2, 2026-07-22) — distinct from PAGES, which are already-tracked rows. */
+const UNTRACKED_PAGES = ['Remote Work Policy','Expense Reimbursement Guide','API Deprecation Notice','Data Retention Schedule'];
 const PICK_USERS = ['Ayşe Yılmaz','John Carter','Elif Kaya','Mehmet Demir','Sara Lindqvist','Zeynep Arslan'];
 const PICK_GROUPS = ['sec-all','hr-team','contractors','engineering'];
 const CONFIRMED_AT = '2026-07-12T11:03:00Z';
@@ -513,8 +522,9 @@ document.getElementById('themeSel').addEventListener('change', e => { themeMode 
 function applyI18n(){
   document.documentElement.lang = locale;
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
-  document.getElementById('bylineConfirmedChip').textContent = t('byline.confirmed',{date:fmtDate(CONFIRMED_AT)});
-  renderFilters(); renderMacro(); renderDashboard(); renderDetail(); renderPickers();
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  renderFilters(); renderMacro(); renderBylineChips(); renderDashboard(); renderDetail(); renderPickers(); renderManagerPickers();
 }
 document.getElementById('localeSel').addEventListener('change', e => { locale = e.target.value; applyI18n(); });
 
@@ -584,16 +594,46 @@ function doConfirm(){
 }
 document.getElementById('macroStateSel').addEventListener('change', e => { macroState=e.target.value; renderMacro(); });
 
-/* ================= byline dialog ================= */
+/* ================= byline: chips (required/confirmed) + dialog =================
+   Two demo-able states behind one chip (bylineConfirmed): required -> dialog
+   with the same pessimistic confirm delay as the macro -> chip refreshes to
+   confirmed once the dialog closes (docs/06 T8 accept criteria). The
+   "expired" lozenge alongside it is a separate, always-shown example of a
+   third viewer's state (a different user, not reachable from this one
+   viewer's required->confirmed flow) — noted in the hint below the card. */
+let bylineConfirmed = false;
+function renderBylineChips(){
+  const box = document.getElementById('bylineChips');
+  const reqOrConfirmed = bylineConfirmed
+    ? `<span class="loz success clickable" id="chipRequired" onclick="openByline('confirmed')">✔ <span>${esc(t('byline.confirmed',{date:fmtDate(CONFIRMED_AT)}))}</span></span>`
+    : `<span class="loz clickable" id="chipRequired" onclick="openByline('required')">● <span>${esc(t('byline.required'))}</span></span>`;
+  box.innerHTML = `<span class="subtle-text">Ayşe Yılmaz · 12 Jul 2026 ·</span>` + reqOrConfirmed +
+    `<span class="loz moved clickable" onclick="openByline('expiredDemo')">⚠ <span>${esc(t('byline.expired'))}</span></span>`;
+}
+function bylineConfirmedDialogBody(){
+  return `<div class="msg success"><span class="icon">✔</span><div>
+      <div class="title">${esc(t('macro.confirmed.title'))}</div>
+      <p>${esc(t('byline.dialog.confirmedDetail',{version:7,datetime:fmtDateTime(CONFIRMED_AT)}))}</p></div></div>`;
+}
 function openByline(kind){
   const body = document.getElementById('bylineDialogBody');
-  body.innerHTML = kind === 'confirmed'
-    ? `<div class="msg success"><span class="icon">✔</span><div>
-        <div class="title">${esc(t('macro.confirmed.title'))}</div>
-        <p>${esc(t('byline.dialog.confirmedDetail',{version:7,datetime:fmtDateTime(CONFIRMED_AT)}))}</p></div></div>`
-    : `<p>${esc(t('byline.dialog.outstanding'))}</p>
-       <p style="margin-top:12px"><button class="btn primary" onclick="openByline('confirmed')">${esc(t('macro.confirmButton'))}</button></p>`;
+  if (kind === 'confirmed' || kind === 'expiredDemo'){
+    body.innerHTML = bylineConfirmedDialogBody();
+  } else {
+    body.innerHTML = `<p>${esc(t('byline.dialog.outstanding'))}</p>
+       <p style="margin-top:12px"><button class="btn primary" id="bylineConfirmBtn" onclick="doBylineConfirm()">
+         <span class="spinner"></span>${esc(t('macro.confirmButton'))}</button></p>`;
+  }
   openModal('bylineModal');
+}
+function doBylineConfirm(){
+  const btn = document.getElementById('bylineConfirmBtn');
+  if (btn) btn.classList.add('loading');
+  setTimeout(() => {
+    bylineConfirmed = true;
+    document.getElementById('bylineDialogBody').innerHTML = bylineConfirmedDialogBody();
+    renderBylineChips(); // chip refreshes as soon as the confirm resolves, same as the macro's R2->R3 — not only on dialog close
+  }, 900);
 }
 
 /* ================= config pickers ================= */
@@ -618,6 +658,29 @@ function removePick(box, val){
 }
 document.getElementById('userAdd').addEventListener('change', e => { if(e.target.value){selUsers.push(e.target.value); renderPickers();} });
 document.getElementById('groupAdd').addEventListener('change', e => { if(e.target.value){selGroups.push(e.target.value); renderPickers();} });
+
+/* ================= settings: compliance-managers users+groups picker
+   (UX §3.5, changed 2026-07-22 from a single-group dropdown to a
+   multi-select of each) ================= */
+let mgrUsers = [], mgrGroups = ['compliance'];
+function renderManagerPickers(){
+  const render = (chips, list, addSel, placeholderKey, all) => {
+    document.getElementById(chips).innerHTML = list.map(v =>
+      `<span class="chip">${esc(v)}<button onclick="removeMgrPick('${chips}','${esc(v)}')">✕</button></span>`).join('');
+    const sel = document.getElementById(addSel);
+    sel.innerHTML = `<option value="">${esc(t(placeholderKey))}</option>` +
+      all.filter(o => !list.includes(o)).map(o => `<option>${esc(o)}</option>`).join('');
+  };
+  render('mgrUserChips', mgrUsers, 'mgrUserAdd', 'config.users.placeholder', PICK_USERS);
+  render('mgrGroupChips', mgrGroups, 'mgrGroupAdd', 'config.groups.placeholder', PICK_GROUPS.concat(['compliance']));
+}
+function removeMgrPick(box, val){
+  if (box==='mgrUserChips') mgrUsers = mgrUsers.filter(v=>v!==val);
+  else mgrGroups = mgrGroups.filter(v=>v!==val);
+  renderManagerPickers();
+}
+document.getElementById('mgrUserAdd').addEventListener('change', e => { if(e.target.value){mgrUsers.push(e.target.value); renderManagerPickers();} });
+document.getElementById('mgrGroupAdd').addEventListener('change', e => { if(e.target.value){mgrGroups.push(e.target.value); renderManagerPickers();} });
 
 /* ================= dashboard ================= */
 function renderFilters(){
@@ -655,7 +718,7 @@ function renderDashboard(){
     return true;
   }).map(p => {
     const title = p.deleted
-      ? `<span class="subtle-text" style="font-style:italic">${esc(t('dashboard.deletedPage',{id:p.id}))}</span>`
+      ? `<a href="#detail" onclick="openDetail('${p.id}')"><span class="subtle-text" style="font-style:italic">${esc(t('dashboard.deletedPage',{id:p.id}))}</span></a>`
       : `<a href="#detail" onclick="openDetail('${p.id}')">${esc(p.title)}</a>`;
     const due = p.due
       ? `<span class="${p.overdue?'danger-text':''}">${p.overdue?'⚠ ':''}${fmtDateShort(p.due)}</span>` : '—';
@@ -673,6 +736,27 @@ function renderDashboard(){
 document.getElementById('fSpace').addEventListener('change', renderDashboard);
 document.getElementById('fStatus').addEventListener('change', renderDashboard);
 function openDetail(id){ show('detail'); renderDetail(id); }
+
+/* "Track a page" search (UX §3.2, 2026-07-22): picking a result opens the
+   same assignment modal used everywhere else — saving it (even with nobody
+   assigned) is what makes the page "tracked", no macro insert required. */
+const trackSearch = document.getElementById('trackSearch');
+const trackResults = document.getElementById('trackSearchResults');
+trackSearch.addEventListener('input', () => {
+  const q = trackSearch.value.trim().toLowerCase();
+  if (!q){ trackResults.style.display='none'; return; }
+  const matches = [...PAGES.filter(p=>!p.deleted).map(p=>p.title), ...UNTRACKED_PAGES]
+    .filter(title => title.toLowerCase().includes(q));
+  if (!matches.length){ trackResults.style.display='none'; return; }
+  trackResults.innerHTML = matches.map(title =>
+    `<button class="btn subtle full" style="justify-content:flex-start;border-radius:0" onclick="pickTrackResult('${esc(title).replace(/'/g,"\\'")}')">${esc(title)}</button>`).join('');
+  trackResults.style.display = 'block';
+});
+function pickTrackResult(title){
+  trackSearch.value = '';
+  trackResults.style.display = 'none';
+  openModal('configModal');
+}
 
 /* export modal fake progress */
 document.getElementById('exportGo').addEventListener('click', () => {
@@ -709,8 +793,10 @@ function personTable(users, page, withCols){
 }
 function renderDetail(id){
   if (id) { detailPage = id; detailTab = 0; }
-  const page = PAGES.find(p=>p.id===detailPage && !p.deleted) || PAGES[0];
-  document.getElementById('detailTitle').textContent = `${page.title} (v${page.version})`;
+  const page = PAGES.find(p=>p.id===detailPage) || PAGES[0];
+  document.getElementById('detailTitle').textContent = page.deleted
+    ? t('dashboard.deletedPage',{id:page.id})
+    : `${page.title} (v${page.version})`;
   document.getElementById('detailSummary').textContent = t('detail.summary',{
     confirmed:page.confirmed, assigned:page.assigned,
     outstanding:page.assigned-page.confirmed-page.cannotView, cannotView:page.cannotView});

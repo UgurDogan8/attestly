@@ -1,7 +1,18 @@
 import { invoke, view } from '@forge/bridge';
 import { createTranslator, resolveLocale } from '../../../src/shared/i18n';
 import type { Translator } from '../../../src/shared/i18n';
-import type { ExportFilePayload, ExportFileResponse, ExportFormat, ExportScope, StatusFilter, Result } from '../../../src/shared/types';
+import type {
+  ExportRowsPayload,
+  ExportRowsResponse,
+  BuildPdfExportPayload,
+  BuildPdfExportResponse,
+  ExportFormat,
+  ExportScope,
+  StatusFilter,
+  Result,
+} from '../../../src/shared/types';
+import { toCsv } from '../../../src/domain/csv';
+import { CSV_HEADER, exportRowToCsvCells, exportFilename, type ExportRow } from '../../../src/domain/export';
 import './style.css';
 
 /**
@@ -30,13 +41,21 @@ function utf16LeBytes(text: string) {
 }
 
 /**
- * The Custom UI export surface (docs/07 §5, post-PR-review revision) — the
- * one place in this app that isn't UI Kit. Deliberately framework-free
- * (no React: `@forge/react` is UI-Kit-only, and this page is one form plus
- * one async action, not worth a bundler-sized dependency). Its only two
- * jobs: call the `exportFile` resolver (the exact same resolver every other
- * surface in this app already uses via `invoke()` — no separate auth path,
- * no token, no webtrigger) and turn the bytes it returns into a real
+ * The Custom UI export surface (docs/07 §5, revised again for T11's
+ * chunked-export fix) — the one place in this app that isn't UI Kit.
+ * Deliberately framework-free (no React: `@forge/react` is UI-Kit-only, and
+ * this page is one form plus one async action, not worth a bundler-sized
+ * dependency). Its jobs: loop `invoke('exportRows', …)` — the same resolver
+ * function every other surface in this app already reaches via `invoke()`,
+ * no separate auth path, no token, no webtrigger — accumulating rows until
+ * `nextCursor` is null (each call is one bounded chunk of tracked pages,
+ * `resolvers/export.ts`'s own docstring has the full reasoning: a single
+ * un-chunked call measured ~10s of KVS/permission work per 10k records
+ * during the T11 spike and risked the resolver's own invocation timeout),
+ * then assemble the finished file — CSV directly here (`domain/csv.ts` is
+ * pure, no Forge imports, safe to run in a browser) or via one final
+ * `buildPdfExport` call (`domain/pdf.ts` writes a Node `Buffer`, which this
+ * page's browser context doesn't have) — and turn the result into a real
  * browser download, which is the one thing UI Kit categorically cannot do.
  *
  * Scope is handed over via query params by `exportNavigation.ts`
@@ -118,13 +137,13 @@ function triggerDownload(filename: string, blob: Blob): void {
   URL.revokeObjectURL(url);
 }
 
-function downloadResponse(data: ExportFileResponse): void {
-  if (data.format === 'csv') {
-    triggerDownload(data.filename, new Blob([utf16LeBytes(data.csv)], { type: 'text/csv;charset=utf-16le' }));
-    return;
-  }
-  const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
-  triggerDownload(data.filename, new Blob([bytes], { type: 'application/pdf' }));
+function downloadCsv(filename: string, csv: string): void {
+  triggerDownload(filename, new Blob([utf16LeBytes(csv)], { type: 'text/csv;charset=utf-16le' }));
+}
+
+function downloadPdf(filename: string, base64: string): void {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  triggerDownload(filename, new Blob([bytes], { type: 'application/pdf' }));
 }
 
 function field(label: string, control: HTMLElement, opts: { full?: boolean } = {}): HTMLElement {
@@ -195,13 +214,49 @@ function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey:
     void handleExport();
   });
 
+  /**
+   * Loops `exportRows` until every in-scope page has been processed
+   * (`nextCursor` null), accumulating rows and threading `exportedAtUtc`
+   * forward unchanged (data model §4: identical on every row of one
+   * export — see resolvers/export.ts's docstring for why this can't be
+   * re-read from the clock per chunk). Each round-trip updates the status
+   * line with a running count, replacing the old single static spinner
+   * with real progress for a large export.
+   */
+  async function fetchAllRows(base: Omit<ExportRowsPayload, 'cursor' | 'exportedAtUtc'>): Promise<{ rows: ExportRow[]; exportedAtUtc: string }> {
+    const rows: ExportRow[] = [];
+    let cursor: string | undefined;
+    let exportedAtUtc: string | undefined;
+
+    for (;;) {
+      const payload: ExportRowsPayload = { ...base, cursor, exportedAtUtc };
+      // Legacy single-generic invoke() form (the type arg is the return
+      // type) — same pattern and same "technically a {body,metadata} union"
+      // caveat as src/frontend/components/useInvoke.ts.
+      const result = (await invoke<Result<ExportRowsResponse>>('exportRows', payload)) as Result<ExportRowsResponse>;
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      rows.push(...result.data.rows);
+      exportedAtUtc = result.data.exportedAtUtc;
+      setStatus('progress', t('export.progressCount', { count: rows.length }));
+      if (!result.data.nextCursor) {
+        break;
+      }
+      cursor = result.data.nextCursor;
+    }
+
+    return { rows, exportedAtUtc: exportedAtUtc as string };
+  }
+
   async function handleExport(): Promise<void> {
     setButtonBusy(true);
     setStatus('progress', t('export.progress'));
 
     const scope: ExportScope = fixedPageId ? 'page' : (scopeSelect.value as ExportScope);
-    const payload: ExportFilePayload = {
-      format: formatSelect.value as ExportFormat,
+    const format = formatSelect.value as ExportFormat;
+    const base: Omit<ExportRowsPayload, 'cursor' | 'exportedAtUtc'> = {
+      format,
       scope,
       scopeValue: fixedPageId ?? (scope === 'space' ? spaceKeyInput.value.trim() || undefined : undefined),
       statusFilter: statusSelect.value as StatusFilter,
@@ -210,16 +265,23 @@ function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey:
     };
 
     try {
-      // Legacy single-generic invoke() form (the type arg is the return
-      // type) — same pattern and same "technically a {body,metadata} union"
-      // caveat as src/frontend/components/useInvoke.ts.
-      const result = (await invoke<Result<ExportFileResponse>>('exportFile', payload)) as Result<ExportFileResponse>;
-      setButtonBusy(false);
-      if (!result.ok) {
-        setStatus('error', result.message);
-        return;
+      const { rows, exportedAtUtc } = await fetchAllRows(base);
+      setStatus('progress', t('export.assembling'));
+
+      if (format === 'pdf') {
+        const pdfPayload: BuildPdfExportPayload = { scope, exportedAtUtc, rows };
+        const pdfResult = (await invoke<Result<BuildPdfExportResponse>>('buildPdfExport', pdfPayload)) as Result<BuildPdfExportResponse>;
+        setButtonBusy(false);
+        if (!pdfResult.ok) {
+          setStatus('error', pdfResult.message);
+          return;
+        }
+        downloadPdf(pdfResult.data.filename, pdfResult.data.base64);
+      } else {
+        const csv = toCsv(CSV_HEADER, rows.map(exportRowToCsvCells));
+        setButtonBusy(false);
+        downloadCsv(exportFilename(scope, exportedAtUtc, 'csv'), csv);
       }
-      downloadResponse(result.data);
       setStatus('success', t('export.ready'));
     } catch (thrown) {
       setButtonBusy(false);

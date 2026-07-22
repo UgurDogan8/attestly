@@ -70,8 +70,9 @@ row, including outstanding readers (auditors need to see who *hasn't* confirmed 
 - Configuration history (who assigned whom, when, and why it changed)
 - Due dates per page
 - Automatic re-confirmation when a tracked page changes to a new version
-- CSV export (RFC 4180, UTF-8 BOM, Excel-ready) and PDF export, both scoped by page/space/site
-  and optional date range
+- CSV export (UTF-16LE, BOM-prefixed, tab-delimited — auto-opens correctly in Excel regardless of
+  regional settings, docs/03 §4) and PDF export, both scoped by page/space/site and optional date
+  range
 - English and Turkish UI
 - Confluence-admin-gated settings: compliance-managers group, org-wide export
 

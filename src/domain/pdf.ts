@@ -1,7 +1,7 @@
 /**
  * Minimal, dependency-free PDF builder (T12, docs/07 §5/§8: "server-side
  * `domain/pdf.ts`" — UI Kit has no DOM/canvas, so the reference's
- * client-side PDF generation is impossible here; the `exportFile` resolver
+ * client-side PDF generation is impossible here; the `buildPdfExport` resolver
  * builds it instead, returned to the Custom UI export surface as base64 for
  * a browser download). Writes raw PDF 1.4 bytes directly (objects, xref, trailer) —
  * no third-party PDF library, which keeps this pure, keeps the "no

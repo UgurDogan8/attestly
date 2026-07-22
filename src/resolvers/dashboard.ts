@@ -104,7 +104,7 @@ export async function resolvePageVisibility(pageIds: string[]): Promise<Map<stri
           const body = (await response.json()) as BulkPagesResponse;
           for (const page of body.results ?? []) {
             // Review finding: a bulk result without a version number must
-            // NOT be trusted as `visible` -- exportFile/pageDetail fall back
+            // NOT be trusted as `visible` -- exportRows/pageDetail fall back
             // to the confirmer's own last-confirmed version whenever
             // `visible.version` is missing, which silently re-labels an
             // expired confirmation as still-confirmed with no error. Treat

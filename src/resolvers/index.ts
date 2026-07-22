@@ -21,8 +21,10 @@ import {
   type GetPageDetailResponse,
   type GetPageHistoryPayload,
   type GetPageHistoryResponse,
-  type ExportFilePayload,
-  type ExportFileResponse,
+  type ExportRowsPayload,
+  type ExportRowsResponse,
+  type BuildPdfExportPayload,
+  type BuildPdfExportResponse,
   type GetSettingsPayload,
   type GetSettingsResponse,
   type SaveSettingsPayload,
@@ -46,7 +48,7 @@ import {
 } from './auth';
 import { getDashboardRows } from './dashboard';
 import { getPageDetail, getPageHistory } from './pageDetail';
-import { exportFile } from './export';
+import { exportRows, buildPdfExport } from './export';
 import { getSettingsForAdmin, saveSettingsForAdmin } from './settings';
 import { APP_VERSION } from '../version';
 
@@ -346,9 +348,14 @@ export function registerResolvers(resolver: Resolver): void {
     withErrorHandling((payload, accountId) => getPageHistory(payload, accountId)),
   );
 
-  resolver.define<ExportFilePayload, Result<ExportFileResponse>>(
-    'exportFile',
-    withErrorHandling((payload, accountId) => exportFile(payload, accountId)),
+  resolver.define<ExportRowsPayload, Result<ExportRowsResponse>>(
+    'exportRows',
+    withErrorHandling((payload, accountId) => exportRows(payload, accountId)),
+  );
+
+  resolver.define<BuildPdfExportPayload, Result<BuildPdfExportResponse>>(
+    'buildPdfExport',
+    withErrorHandling((payload, accountId) => buildPdfExport(payload, accountId)),
   );
 
   resolver.define<GetSettingsPayload, Result<GetSettingsResponse>>(
