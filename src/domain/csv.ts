@@ -9,6 +9,32 @@
 export const CSV_BOM = '﻿';
 
 /**
+ * Excel picks its CSV column separator from the OS region's *number
+ * format*, not the file's actual delimiter: on a Turkish (and many other
+ * non-US/UK) Windows locale, the decimal comma makes Excel expect `;`, so a
+ * plain comma-delimited file opens as one unsplit column per row (owner-
+ * reported, 2026-07-22).
+ *
+ * First fix attempt was an Excel `sep=,` directive line — reverted the same
+ * day: a second owner report (Turkish letters ı/İ/ğ/Ğ/ş/Ş showing as
+ * mojibake in the *same* file) pointed at a known Excel quirk where the
+ * `sep=` line is handled by a legacy import path that does not reliably
+ * honor the file's UTF-8 BOM the normal CSV-open path does — so the fix for
+ * the delimiter problem was silently reintroducing an encoding bug. Rather
+ * than fight Excel's own special-case line, this makes the delimiter itself
+ * match what Excel already expects for the exporting user's own locale (the
+ * export UI already resolves `Locale` for i18n — `static/export-ui/src/main.ts`
+ * passes the matching delimiter through `ExportFilePayload.csvDelimiter`, see
+ * `shared/types.ts`) — no directive line, so the file's normal BOM-aware
+ * open path is the only one Excel ever uses.
+ */
+export type CsvDelimiter = ',' | ';';
+
+function delimiterPattern(delimiter: CsvDelimiter): RegExp {
+  return delimiter === ';' ? /[";\r\n]/ : /[",\r\n]/;
+}
+
+/**
  * CSV/formula injection (CWE-1236), found in review: `pageTitle` (settable
  * by anyone with edit rights on the page) and `userDisplayName` (a user's
  * own Confluence account name) flow into this file's cells unsanitized.
@@ -26,50 +52,30 @@ function neutralizeFormula(value: string): string {
   return value.length > 0 && FORMULA_TRIGGER_CHARS.has(value[0]) ? `'${value}` : value;
 }
 
-/** Quotes a field only when RFC 4180 requires it (contains a comma, quote, or newline); doubles internal quotes. */
-function quoteField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
+/** Quotes a field only when RFC 4180 requires it relative to the active delimiter (contains that delimiter, a quote, or a newline); doubles internal quotes. */
+function quoteField(value: string, delimiter: CsvDelimiter): string {
+  if (delimiterPattern(delimiter).test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
 }
 
-function formatCell(value: string | number | null): string {
+function formatCell(value: string | number | null, delimiter: CsvDelimiter): string {
   if (value === null) {
     return '';
   }
   if (typeof value === 'number') {
-    return quoteField(String(value));
+    return quoteField(String(value), delimiter);
   }
-  return quoteField(neutralizeFormula(value));
+  return quoteField(neutralizeFormula(value), delimiter);
 }
 
-export function toCsvRow(cells: (string | number | null)[]): string {
-  return cells.map(formatCell).join(',');
+export function toCsvRow(cells: (string | number | null)[], delimiter: CsvDelimiter = ','): string {
+  return cells.map((cell) => formatCell(cell, delimiter)).join(delimiter);
 }
 
-/**
- * Excel doesn't always split this file into columns on open (owner-reported,
- * 2026-07-22): Excel picks its default CSV list-separator from the OS
- * region's *number format*, not the file's actual delimiter — on a Turkish
- * (and many other non-US/UK) Windows locale, the decimal comma makes Excel
- * default to `;`, so a plain comma-delimited file opens as one unsplit
- * column per row regardless of how correctly it's built. `sep=,` as the
- * file's first line is Excel's own documented override for exactly this
- * (recognized since Excel 2007, independent of regional settings) — Excel
- * hides the line and opens the rest correctly split. Deliberate tradeoff:
- * this makes the file not strictly RFC 4180 anymore (an extra directive line
- * before the header) — a machine consumer that doesn't know Excel's
- * convention must skip line 1 itself. Chosen anyway because this export's
- * entire purpose is being opened in a spreadsheet by a person (docs/07 §5),
- * and every existing caller in this app already reads the CSV by
- * `.toContain(...)`, never by assuming the header sits on line 1 (which
- * would have needed updating here rather than there).
- */
-const EXCEL_SEPARATOR_HINT = 'sep=,\r\n';
-
-/** Header + rows, CRLF line endings (RFC 4180 otherwise), BOM-prefixed, Excel separator hint first. */
-export function toCsv(header: string[], rows: (string | number | null)[][]): string {
-  const lines = [toCsvRow(header), ...rows.map(toCsvRow)];
-  return CSV_BOM + EXCEL_SEPARATOR_HINT + lines.join('\r\n');
+/** Header + rows, CRLF line endings (RFC 4180), BOM-prefixed. `delimiter` defaults to comma (docs/03 §4); pass `;` for a locale whose Excel expects it (see CsvDelimiter's docstring). */
+export function toCsv(header: string[], rows: (string | number | null)[][], delimiter: CsvDelimiter = ','): string {
+  const lines = [toCsvRow(header, delimiter), ...rows.map((row) => toCsvRow(row, delimiter))];
+  return CSV_BOM + lines.join('\r\n');
 }

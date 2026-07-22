@@ -194,6 +194,33 @@ describe('exportFile — CSV generation', () => {
     expect(csv).toContain('page_title,page_id,space_key');
   });
 
+  it('uses semicolons throughout when csvDelimiter is ";" (2026-07-22, Excel locale fix -- tr export UI sends this)', async () => {
+    await asManager();
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));
+    fakeApi.setHandler((url) => {
+      if (url.includes('/user/memberof')) return jsonResponse(200, { results: [{ id: 'managers' }] });
+      if (url.startsWith('/wiki/api/v2/pages?')) return jsonResponse(200, { results: [{ id: 'page-1', title: 'Security, Policy', version: { number: 1 } }] });
+      if (url.includes('/permission/check')) return jsonResponse(200, { hasPermission: true });
+      return jsonResponse(200, { displayName: 'X' });
+    });
+
+    const csv = await csvOf(await exportFile({ format: 'csv', scope: 'site', csvDelimiter: ';' }, 'acc-1'));
+    expect(csv).toContain('page_title;page_id;space_key');
+    // A comma in the title no longer needs quoting once the delimiter is ";".
+    expect(csv).toContain('Security, Policy;page-1;SEC;;X;acc-1;assigned;outstanding;;');
+    expect(csv).not.toContain('sep=');
+  });
+
+  it('defaults to comma when csvDelimiter is omitted', async () => {
+    await asManager();
+    await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: [] }));
+    fakeApi.setHandler(visibleHandler([{ id: 'page-1', title: 'Security Policy' }]));
+
+    const result = await exportFile({ format: 'csv', scope: 'site' }, 'acc-1');
+    const csv = (result as { ok: true; data: { csv: string } }).data.csv;
+    expect(csv).toContain('page_title,page_id,space_key');
+  });
+
   it('emits one row per assigned user, outstanding when never confirmed (PRD F1: the negative space)', async () => {
     await asManager();
     await savePageConfig(aPageConfig({ pageId: 'page-1', spaceKey: 'SEC', assignedUsers: ['acc-1'] }));

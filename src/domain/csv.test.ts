@@ -1,6 +1,6 @@
 import { CSV_BOM, toCsv, toCsvRow } from './csv';
 
-describe('toCsvRow (RFC 4180)', () => {
+describe('toCsvRow (RFC 4180, default comma delimiter)', () => {
   it('joins plain cells with commas, no quoting needed', () => {
     expect(toCsvRow(['a', 'b', 1])).toBe('a,b,1');
   });
@@ -19,6 +19,20 @@ describe('toCsvRow (RFC 4180)', () => {
 
   it('renders null as an empty cell', () => {
     expect(toCsvRow(['a', null, 'c'])).toBe('a,,c');
+  });
+});
+
+describe('toCsvRow — semicolon delimiter (2026-07-22, Excel locale fix)', () => {
+  it('joins cells with semicolons instead of commas', () => {
+    expect(toCsvRow(['a', 'b', 1], ';')).toBe('a;b;1');
+  });
+
+  it('a comma no longer needs quoting once the delimiter is semicolon', () => {
+    expect(toCsvRow(['Security, Policy'], ';')).toBe('Security, Policy');
+  });
+
+  it('a semicolon in the value does need quoting under the semicolon delimiter', () => {
+    expect(toCsvRow(['Security; Policy'], ';')).toBe('"Security; Policy"');
   });
 });
 
@@ -47,20 +61,24 @@ describe('toCsvRow — CSV/formula injection (CWE-1236)', () => {
 });
 
 describe('toCsv', () => {
-  it('BOM-prefixes the file, then an Excel sep= hint, then CRLF-joined header + rows', () => {
+  it('BOM-prefixes the file and CRLF-joins header + rows, comma delimiter by default', () => {
     const csv = toCsv(['col1', 'col2'], [['a', 1], ['b', null]]);
     expect(csv.startsWith(CSV_BOM)).toBe(true);
-    expect(csv).toBe(`${CSV_BOM}sep=,\r\ncol1,col2\r\na,1\r\nb,`);
+    expect(csv).toBe(`${CSV_BOM}col1,col2\r\na,1\r\nb,`);
   });
 
-  it('produces just the sep= hint and a header line for zero rows', () => {
-    expect(toCsv(['col1'], [])).toBe(`${CSV_BOM}sep=,\r\ncol1`);
+  it('produces just a header line for zero rows', () => {
+    expect(toCsv(['col1'], [])).toBe(`${CSV_BOM}col1`);
   });
 
-  it('the sep= hint fixes Excel opening this on a locale whose list separator is not a comma (owner-reported, 2026-07-22)', () => {
-    // Excel only honors `sep=X` on the file's very first line -- verify it
-    // survives ahead of the BOM-then-header, not buried anywhere else.
+  it('uses semicolons throughout when passed the semicolon delimiter (2026-07-22, Excel locale fix)', () => {
+    const csv = toCsv(['col1', 'col2'], [['a', 1]], ';');
+    expect(csv).toBe(`${CSV_BOM}col1;col2\r\na;1`);
+  });
+
+  it('no longer prepends an Excel `sep=` directive line (reverted 2026-07-22: it stopped Excel honoring the UTF-8 BOM, corrupting Turkish letters) -- the delimiter itself now carries the fix', () => {
     const csv = toCsv(['col1'], [['a']]);
-    expect(csv.slice(CSV_BOM.length, CSV_BOM.length + 6)).toBe('sep=,\r');
+    expect(csv.startsWith(`${CSV_BOM}col1`)).toBe(true);
+    expect(csv).not.toContain('sep=');
   });
 });

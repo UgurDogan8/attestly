@@ -1,8 +1,23 @@
 import { invoke, view } from '@forge/bridge';
 import { createTranslator, resolveLocale } from '../../../src/shared/i18n';
-import type { Translator } from '../../../src/shared/i18n';
+import type { Translator, Locale } from '../../../src/shared/i18n';
 import type { ExportFilePayload, ExportFileResponse, ExportFormat, ExportScope, StatusFilter, Result } from '../../../src/shared/types';
 import './style.css';
+
+/**
+ * Excel's own default CSV column separator follows the OS region's decimal
+ * format, not the file's actual delimiter (domain/csv.ts's CsvDelimiter
+ * docstring has the full incident — a `sep=,` directive line was tried
+ * first and reverted the same day for silently breaking Turkish-letter
+ * encoding). `tr` locale is used here as this app's only available proxy
+ * for "this viewer's Excel likely expects `;`" — Confluence's own locale
+ * setting, not the OS region, but the two are correlated closely enough in
+ * practice to be worth matching without adding a manifest scope or a new
+ * REST call just to ask Windows directly.
+ */
+function csvDelimiterFor(locale: Locale): ',' | ';' {
+  return locale === 'tr' ? ';' : ',';
+}
 
 /**
  * The Custom UI export surface (docs/07 §5, post-PR-review revision) — the
@@ -106,7 +121,7 @@ function field(label: string, control: HTMLElement, opts: { full?: boolean } = {
   return el('div', { className: opts.full ? 'field field--full' : 'field' }, [el('label', { textContent: label }), control]);
 }
 
-function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey: string | undefined): void {
+function render(t: Translator, locale: Locale, fixedPageId: string | undefined, initialSpaceKey: string | undefined): void {
   const app = document.getElementById('app');
   if (!app) {
     return;
@@ -182,6 +197,7 @@ function render(t: Translator, fixedPageId: string | undefined, initialSpaceKey:
       statusFilter: statusSelect.value as StatusFilter,
       dateFrom: dateFromInput.value || undefined,
       dateTo: dateToInput.value || undefined,
+      csvDelimiter: csvDelimiterFor(locale),
     };
 
     try {
@@ -257,6 +273,7 @@ view
   .getContext()
   .then((context) => {
     const { fixedPageId, initialSpaceKey } = readScopeParams(context);
-    render(createTranslator(resolveLocale(context?.locale)), fixedPageId, initialSpaceKey);
+    const locale = resolveLocale(context?.locale);
+    render(createTranslator(locale), locale, fixedPageId, initialSpaceKey);
   })
   .catch(() => renderContextError(createTranslator('en')));

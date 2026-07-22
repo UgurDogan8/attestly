@@ -233,6 +233,7 @@ export async function exportFile(payload: ExportFilePayload, accountId: string):
   const csv = toCsv(
     CSV_HEADER,
     rows.map((row) => exportRowToCsvCells(row)),
+    payload.csvDelimiter ?? ',',
   );
   return ok({ format: 'csv', filename: `read-confirmations_${payload.scope}_${dateStamp}.csv`, csv });
 }

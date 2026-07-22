@@ -315,6 +315,13 @@ export interface ExportFilePayload {
    * confirmed_at_utc to filter on (data model §4). */
   dateFrom?: string;
   dateTo?: string;
+  /** `format: 'csv'` only (2026-07-22, domain/csv.ts's CsvDelimiter docstring
+   * has the full story). The Custom UI export surface already resolves the
+   * viewer's Locale for i18n and passes the matching Excel column separator
+   * through here — i18n/locale stays a client-side concern (docs/07 §4);
+   * this resolver only ever sees a concrete delimiter, never a locale
+   * string. Omitted or `format: 'pdf'` → defaults to `,`. */
+  csvDelimiter?: ',' | ';';
 }
 
 /** `csv` is plain UTF-8 text (already BOM-prefixed, domain/csv.ts); `pdf` is base64 — the only one of the two that's binary. */
